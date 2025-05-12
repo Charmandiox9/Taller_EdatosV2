@@ -1,0 +1,17 @@
+{
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "C:/Users/Charm/OneDrive/Documentos/GitHub/Taller_EdatosV2/SFML-2.6.1/include"
+      ],
+      "defines": ["_DEBUG", "UNICODE", "_UNICODE", "SFML_STATIC"],
+      "compilerPath": "C:/msys64/ucrt64/bin/g++.exe",
+      "cStandard": "c17",
+      "cppStandard": "gnu++17",
+      "intelliSenseMode": "windows-gcc-x64"
+    }
+  ],
+  "version": 4
+}
