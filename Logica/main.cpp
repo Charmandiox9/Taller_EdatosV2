@@ -157,7 +157,7 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     return 0;
 }*/
 
-int main()
+/*int main()
 {
     const int cellSize = 100;
     const int gridSize = 3;
@@ -188,4 +188,82 @@ int main()
     }
 
     return 0;
+}*/
+
+// ... (mismas funciones crearTablero, agregarPosicion, disparar)
+
+sf::Color obtenerColorTerreno(int tipoTerreno) {
+    switch (tipoTerreno) {
+        case 1: return sf::Color(139, 69, 19); // Café oscuro: tierra
+        case 2: return sf::Color(34, 139, 34); // Verde: pasto
+        case 3: return sf::Color(169, 169, 169); // Gris: cemento
+        default: return sf::Color::Black;
+    }
 }
+
+int main() {
+    const int cellSize = 100;
+    const int gridRows = 5;
+    const int gridCols = 5;
+    const int windowWidth = cellSize * gridCols;
+    const int windowHeight = cellSize * gridRows;
+
+    // Crear tablero
+    NodoSistema* tablero = crearTablero();
+
+    // Crear tanques y asignarlos (opcional si quieres mostrar tanques también)
+    Tanque* tanque1 = new TanquePesado(1);
+    Tanque* tanque2 = new TanquePesado(2);
+    Tanque* tanque3 = new TanquePesado(3);
+    Tanque* tanque4 = new TanquePesado(4);
+
+    NodoSistema* temp = tablero;
+    while (temp != nullptr) {
+        int id = temp->getIdNodo();
+        if (temp->getTanque() == nullptr) {
+            if (id == 24) temp->setTanque(tanque1);
+            else if (id == 0) temp->setTanque(tanque2);
+            else if (id == 18) temp->setTanque(tanque3);
+            else if (id == 13) temp->setTanque(tanque4);
+        }
+        temp = temp->getSiguiente();
+    }
+
+    sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "Tablero 5x5");
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+        }
+
+        window.clear(sf::Color::White);
+
+        // Recorrer el tablero y dibujar
+        temp = tablero;
+        while (temp != nullptr) {
+            int x = temp->getPosX();
+            int y = temp->getPosY();
+            int terreno = temp->getTipoTerreno();
+
+            sf::RectangleShape cell(sf::Vector2f(cellSize - 2, cellSize - 2));
+            cell.setPosition(y * cellSize + 1, x * cellSize + 1); // y: columna, x: fila
+            cell.setFillColor(obtenerColorTerreno(terreno));
+
+            // Si hay tanque, cambia el color o dibuja algo adicional
+            if (temp->getTanque() != nullptr) {
+                cell.setOutlineThickness(3);
+                cell.setOutlineColor(sf::Color::Red);
+            }
+
+            window.draw(cell);
+            temp = temp->getSiguiente();
+        }
+
+        window.display();
+    }
+
+    return 0;
+}
+
