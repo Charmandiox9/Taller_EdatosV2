@@ -203,21 +203,36 @@ sf::Color obtenerColorTerreno(int tipoTerreno) {
 
 int main() {
     const int cellSize = 100;
-    const int gridRows = 5;
-    const int gridCols = 5;
-    const int windowWidth = cellSize * gridCols;
-    const int windowHeight = cellSize * gridRows;
+    const int filas = 5;
+    const int columnas = 5;
 
-    // Crear tablero
-    NodoSistema* tablero = crearTablero();
+    sf::RenderWindow window(sf::VideoMode(columnas * cellSize + 50, filas * cellSize + 50), "Ferrum Bellum");
 
-    // Crear tanques y asignarlos (opcional si quieres mostrar tanques también)
+    // Cargar fuente
+    sf::Font font;
+    if (!font.loadFromFile("Fuentes/BebasNeue-Regular.ttf")) {
+        cout << "Error cargando la fuente." << endl;
+        return -1;
+    }
+
+    // Cargar texturas
+    sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3, texturaTanque;
+    if (!texturaTerreno1.loadFromFile("Imagenes/Terreno/planicie.png") ||
+        !texturaTerreno2.loadFromFile("Imagenes/Terreno/bosque.png") ||
+        !texturaTerreno3.loadFromFile("Imagenes/Terreno/montania.png") ||
+        !texturaTanque.loadFromFile("Imagenes/Tanques/ligero-removebg-preview.png")) {
+        cout << "Error cargando una o más texturas." << endl;
+        return -1;
+    }
+
+    NodoSistema* tableroPosiciones = crearTablero(); // <-- Define esta función según tu lógica
+
     Tanque* tanque1 = new TanquePesado(1);
     Tanque* tanque2 = new TanquePesado(2);
     Tanque* tanque3 = new TanquePesado(3);
     Tanque* tanque4 = new TanquePesado(4);
 
-    NodoSistema* temp = tablero;
+    NodoSistema* temp = tableroPosiciones;
     while (temp != nullptr) {
         int id = temp->getIdNodo();
         if (temp->getTanque() == nullptr) {
@@ -229,8 +244,6 @@ int main() {
         temp = temp->getSiguiente();
     }
 
-    sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "Tablero 5x5");
-
     while (window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event)) {
@@ -238,27 +251,62 @@ int main() {
                 window.close();
         }
 
-        window.clear(sf::Color::White);
+        window.clear();
 
-        // Recorrer el tablero y dibujar
-        temp = tablero;
-        while (temp != nullptr) {
-            int x = temp->getPosX();
-            int y = temp->getPosY();
-            int terreno = temp->getTipoTerreno();
+        // Coordenadas X (columnas)
+        for (int col = 0; col < columnas; col++) {
+            sf::Text text;
+            text.setFont(font);
+            text.setString(to_string(col));
+            text.setCharacterSize(18);
+            text.setFillColor(sf::Color::White);
+            text.setPosition(col * cellSize + 60, 10);
+            window.draw(text);
+        }
 
-            sf::RectangleShape cell(sf::Vector2f(cellSize - 2, cellSize - 2));
-            cell.setPosition(y * cellSize + 1, x * cellSize + 1); // y: columna, x: fila
-            cell.setFillColor(obtenerColorTerreno(terreno));
+        // Coordenadas Y (filas)
+        for (int row = 0; row < filas; row++) {
+            sf::Text text;
+            text.setFont(font);
+            text.setString(to_string(row));
+            text.setCharacterSize(18);
+            text.setFillColor(sf::Color::White);
+            text.setPosition(10, row * cellSize + 60);
+            window.draw(text);
+        }
 
-            // Si hay tanque, cambia el color o dibuja algo adicional
-            if (temp->getTanque() != nullptr) {
-                cell.setOutlineThickness(3);
-                cell.setOutlineColor(sf::Color::Red);
+        NodoSistema* actual = tableroPosiciones;
+        while (actual != nullptr) {
+            sf::Sprite sprite;
+
+            switch (actual->getTipoTerreno()) {
+                case 1: sprite.setTexture(texturaTerreno1); break;
+                case 2: sprite.setTexture(texturaTerreno2); break;
+                case 3: sprite.setTexture(texturaTerreno3); break;
+                default: sprite.setColor(sf::Color::Red); break;
             }
 
-            window.draw(cell);
-            temp = temp->getSiguiente();
+            float x = actual->getPosY() * cellSize + 50;
+            float y = actual->getPosX() * cellSize + 50;
+            sprite.setPosition(x, y);
+            sprite.setScale(
+                (float)cellSize / sprite.getTexture()->getSize().x,
+                (float)cellSize / sprite.getTexture()->getSize().y
+            );
+            window.draw(sprite);
+
+            if (actual->getTanque() != nullptr) {
+                sf::Sprite spriteTanque;
+                spriteTanque.setTexture(texturaTanque);
+                spriteTanque.setPosition(x, y);
+                spriteTanque.setScale(
+                    (float)cellSize / spriteTanque.getTexture()->getSize().x,
+                    (float)cellSize / spriteTanque.getTexture()->getSize().y
+                );
+                window.draw(spriteTanque);
+            }
+
+            actual = actual->getSiguiente();
         }
 
         window.display();
@@ -266,4 +314,3 @@ int main() {
 
     return 0;
 }
-
