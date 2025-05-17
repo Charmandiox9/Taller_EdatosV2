@@ -1,5 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include "../Dominio/Tanques/TanqueLigero.h"
+#include "../Dominio/Tanques/TanqueMediano.h"
 #include "../Dominio/Tanques/TanquePesado.h"
 #include "../Dominio/Nodos/NodoSistema.h"
 using namespace std;
@@ -227,8 +229,8 @@ int main() {
 
     NodoSistema* tableroPosiciones = crearTablero(); // <-- Define esta función según tu lógica
 
-    Tanque* tanque1 = new TanquePesado(1);
-    Tanque* tanque2 = new TanquePesado(2);
+    Tanque* tanque1 = new TanqueLigero(1);
+    Tanque* tanque2 = new TanqueMediano(2);
     Tanque* tanque3 = new TanquePesado(3);
     Tanque* tanque4 = new TanquePesado(4);
 
