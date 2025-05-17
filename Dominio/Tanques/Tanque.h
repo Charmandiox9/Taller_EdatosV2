@@ -5,6 +5,8 @@ class Tanque {
 protected:
     int idTanque;
     int vida;
+    int daño;
+    int movimientoBase;
 
 public:
     Tanque(int id);
@@ -14,9 +16,13 @@ public:
 
     int getIdTanque() const;
     int getVida() const;
+    virtual int getDaño() const;
+    virtual int getMovimientoBase() const;
 
     void setId(int nuevoId);
     void setVida(int nuevaVida);
+    virtual void setDaño(int nuevoDaño);
+    virtual void setMovimientoBase(int nuevoMovimientoBase);
 
     virtual ~Tanque() = default;
 };

@@ -52,10 +52,26 @@ int Tanque::getVida() const {
     return vida;
 }
 
+int Tanque::getDaño() const {
+    return daño; // Valor de daño por defecto
+}
+
+int Tanque::getMovimientoBase() const {
+    return movimientoBase; // Valor de movimiento base por defecto
+}
+
 void Tanque::setId(int nuevoId) {
     idTanque = nuevoId;
 }
 
 void Tanque::setVida(int nuevaVida) {
     vida = nuevaVida;
+}
+
+void Tanque::setDaño(int nuevoDaño) {
+    daño = nuevoDaño;
+}
+
+void Tanque::setMovimientoBase(int nuevoMovimientoBase) {
+    movimientoBase = nuevoMovimientoBase;
 }
