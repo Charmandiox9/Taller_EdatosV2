@@ -488,13 +488,18 @@ int main() {
     }
 
     // Cargar texturas
-    sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3, texturaTanque1, texturaTanque2, texturaTanque3;
+    sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3, 
+    texturaTanque1Jugadores, texturaTanque2Jugadores, texturaTanque3Jugadores,
+    texturaTanque4IA, texturaTanque5IA, texturaTanque6IA;
     if (!texturaTerreno1.loadFromFile("Imagenes/Terreno/planicie.png") ||
         !texturaTerreno2.loadFromFile("Imagenes/Terreno/bosque.png") ||
-        !texturaTerreno3.loadFromFile("Imagenes/Terreno/montania.png") ||
-        !texturaTanque1.loadFromFile("Imagenes/Tanques/ligero-removebg-preview.png") ||
-        !texturaTanque2.loadFromFile("Imagenes/Tanques/mediano-removebg-preview.png") ||
-        !texturaTanque3.loadFromFile("Imagenes/Tanques/pesado-removebg-preview.png")) {
+        !texturaTerreno3.loadFromFile("Imagenes/Terreno/montaniaNevada.png") ||
+        !texturaTanque1Jugadores.loadFromFile("Imagenes/Tanques/ligeroA-removebg-preview.png") ||
+        !texturaTanque2Jugadores.loadFromFile("Imagenes/Tanques/medianoA-removebg-preview.png") ||
+        !texturaTanque3Jugadores.loadFromFile("Imagenes/Tanques/pesadoA-removebg-preview.png") ||
+        !texturaTanque4IA.loadFromFile("Imagenes/Tanques/ligeroR-removebg-preview.png") ||
+        !texturaTanque5IA.loadFromFile("Imagenes/Tanques/medianoR-removebg-preview.png") ||
+        !texturaTanque6IA.loadFromFile("Imagenes/Tanques/pesadoR-removebg-preview.png")) {
         std::cout << "Error cargando una o más texturas." << std::endl;
         return -1;
     }
@@ -515,7 +520,8 @@ int main() {
 
     // Desplegar tablero
     desplegarTablero(window, font, filas, columnas, cellSize, tableroPosiciones,
-                     texturaTerreno1, texturaTerreno2, texturaTerreno3, texturaTanque1, texturaTanque2, texturaTanque3);
+                     texturaTerreno1, texturaTerreno2, texturaTerreno3,
+                     texturaTanque1Jugadores, texturaTanque2Jugadores, texturaTanque3Jugadores);
 
     return 0;
 }
