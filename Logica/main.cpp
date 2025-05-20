@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <stack>
+#include <vector>
 #include <cstdlib> // Para rand() y srand()
 #include <ctime>   // Para time()
 
@@ -130,123 +131,146 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
 }
 
 
-void mostrarMenuSeleccionTanquesJugador(
+bool mostrarMenuSeleccionTanquesJugador(
     sf::RenderWindow& window,
     sf::Font& font,
     std::stack<Tanque*>& tanquesJugador,
     NodoSistema* tableroPosiciones
 ) {
-    std::vector<std::string> opciones = {"Tanque Ligero", "Tanque Mediano", "Tanque Pesado"};
+    std::vector<std::string> opciones = {
+        "Tanque Ligero",
+        "Tanque Mediano",
+        "Tanque Pesado"
+    };
     int seleccion = 0;
     int idTanque = 1;
     std::vector<Tanque*> seleccionados;
 
-    enum Estado { SELECCION_TANQUE, INGRESO_COORDENADAS } estado = SELECCION_TANQUE;
+    enum Estado { SELECCION_TANQUE, INGRESO_COORDENADAS };
+    Estado estado = SELECCION_TANQUE;
 
     Tanque* tanqueParaColocar = nullptr;
-    std::string inputX = "";
-    std::string inputY = "";
+    std::string inputX, inputY;
     bool escribiendoY = false;
 
     const int cellSize = 40;
-    const int filas = 5;
-    const int columnas = 5;
+    const int filas = 5, columnas = 5;
 
     while (window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
+                // Liberar memoria al cerrar
                 for (auto t : seleccionados) delete t;
-                if (tanqueParaColocar) delete tanqueParaColocar;
+                delete tanqueParaColocar;
                 window.close();
-                return;
+                return false;
             }
 
-            if (estado == SELECCION_TANQUE) {
-                if (event.type == sf::Event::KeyPressed) {
-                    if (event.key.code == sf::Keyboard::Up) {
-                        seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
+            if (estado == SELECCION_TANQUE && event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Up) {
+                    seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Down) {
+                    seleccion = (seleccion + 1) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Enter) {
+                    if (seleccionados.size() == 3) {
+                        // Confirmar selección: pasar punteros a la pila
+                        for (int i = (int)seleccionados.size() - 1; i >= 0; --i)
+                            tanquesJugador.push(seleccionados[i]);
+                        seleccionados.clear();
+                        return true;
                     }
-                    else if (event.key.code == sf::Keyboard::Down) {
-                        seleccion = (seleccion + 1) % opciones.size();
+                    switch (seleccion) {
+                        case 0: tanqueParaColocar = new TanqueLigero(idTanque++); break;
+                        case 1: tanqueParaColocar = new TanqueMediano(idTanque++); break;
+                        case 2: tanqueParaColocar = new TanquePesado(idTanque++); break;
                     }
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        if (seleccionados.size() == 3) {
-                            for (int i = seleccionados.size() - 1; i >= 0; --i) {
-                                tanquesJugador.push(seleccionados[i]);
-                            }
-                            return;
-                        } else {
-                            switch (seleccion) {
-                                case 0: tanqueParaColocar = new TanqueLigero(idTanque++); break;
-                                case 1: tanqueParaColocar = new TanqueMediano(idTanque++); break;
-                                case 2: tanqueParaColocar = new TanquePesado(idTanque++); break;
-                            }
-                            inputX = "";
-                            inputY = "";
-                            escribiendoY = false;
-                            estado = INGRESO_COORDENADAS;
-                        }
-                    }
-                    else if (event.key.code == sf::Keyboard::Backspace) {
-                        if (!seleccionados.empty()) {
-                            delete seleccionados.back();
-                            seleccionados.pop_back();
-                        }
-                    }
-                }
-            }
-            else if (estado == INGRESO_COORDENADAS) {
-                if (event.type == sf::Event::TextEntered) {
-                    char entered = static_cast<char>(event.text.unicode);
-                    if (isdigit(entered)) {
-                        if (!escribiendoY)
-                            inputY += entered;  // CORREGIDO: primero Y
-                        else
-                            inputX += entered;  // luego X
-                    }
-                    else if (entered == ' ') {
-                        if (!inputY.empty() && !escribiendoY) {
-                            escribiendoY = true;
-                        }
-                    }
-                }
-                else if (event.type == sf::Event::KeyPressed) {
-                    if (event.key.code == sf::Keyboard::Backspace) {
-                        if (escribiendoY && !inputX.empty()) {
-                            inputX.pop_back();
-                        } else if (escribiendoY && inputX.empty()) {
-                            escribiendoY = false;
-                            if (!inputY.empty())
-                                inputY.pop_back();
-                        } else if (!escribiendoY && !inputY.empty()) {
-                            inputY.pop_back();
-                        }
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        if (!inputX.empty() && !inputY.empty()) {
-                            int y = std::stoi(inputY);  // CORREGIDO: y primero
-                            int x = std::stoi(inputX);  // luego x
+                    inputX.clear();
+                    inputY.clear();
+                    escribiendoY = false;
+                    estado = INGRESO_COORDENADAS;
+                } else if (event.key.code == sf::Keyboard::Backspace) {
+                    if (!seleccionados.empty()) {
+                        Tanque* tanqueAEliminar = seleccionados.back();
 
+                        if (tanqueAEliminar != nullptr) {
                             NodoSistema* temp = tableroPosiciones;
-                            NodoSistema* nodoDestino = nullptr;
-                            while (temp != nullptr) {
-                                if (temp->getPosY() == x && temp->getPosX() == y) {
-                                    nodoDestino = temp;
+                            bool encontrado = false;
+                            while (temp) {
+                                if (temp->getTanque() == tanqueAEliminar) {
+                                    temp->setTanque(nullptr);
+                                    encontrado = true;
                                     break;
                                 }
                                 temp = temp->getSiguiente();
                             }
 
-                            if (nodoDestino == nullptr || nodoDestino->getTanque() != nullptr || y >= 2) {
-                                inputX = "";
-                                inputY = "";
-                                escribiendoY = false;
+                            if (encontrado) {
+                                std::cout << "Tanque encontrado en tablero, eliminando referencia (sin delete).\n";
+                                seleccionados.pop_back();
+                                // NO hacemos delete aquí para evitar crash
                             } else {
-                                nodoDestino->setTanque(tanqueParaColocar);
+                                std::cout << "ERROR: Tanque no encontrado en tablero al intentar eliminar.\n";
+                            }
+                        } else {
+                            std::cout << "ERROR: Tanque a eliminar es nullptr.\n";
+                        }
+                    } else {
+                        std::cout << "ERROR: No hay tanques para eliminar.\n";
+                    }
+                } else if (event.key.code == sf::Keyboard::Escape) {
+                    // Cancelar selección: liberar memoria
+                    for (auto t : seleccionados) delete t;
+                    seleccionados.clear();
+                    delete tanqueParaColocar;
+                    tanqueParaColocar = nullptr;
+                    return false;
+                }
+            } else if (estado == INGRESO_COORDENADAS) {
+                if (event.type == sf::Event::TextEntered) {
+                    char c = static_cast<char>(event.text.unicode);
+                    if (isdigit(c)) {
+                        if (!escribiendoY) inputY += c;
+                        else inputX += c;
+                    } else if (c == ' ' && !inputY.empty() && !escribiendoY) {
+                        escribiendoY = true;
+                    }
+                } else if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::Backspace) {
+                        if (escribiendoY && !inputX.empty()) {
+                            inputX.pop_back();
+                        } else if (escribiendoY && inputX.empty()) {
+                            escribiendoY = false;
+                            if (!inputY.empty()) inputY.pop_back();
+                        } else if (!escribiendoY && !inputY.empty()) {
+                            inputY.pop_back();
+                        }
+                    } else if (event.key.code == sf::Keyboard::Escape) {
+                        delete tanqueParaColocar;
+                        tanqueParaColocar = nullptr;
+                        estado = SELECCION_TANQUE;
+                    } else if (event.key.code == sf::Keyboard::Enter) {
+                        if (!inputY.empty() && !inputX.empty()) {
+                            int y = std::stoi(inputY);
+                            int x = std::stoi(inputX);
+                            NodoSistema* temp = tableroPosiciones;
+                            NodoSistema* destino = nullptr;
+                            while (temp) {
+                                if (temp->getPosY() == x && temp->getPosX() == y) {
+                                    destino = temp;
+                                    break;
+                                }
+                                temp = temp->getSiguiente();
+                            }
+                            if (destino && destino->getTanque() == nullptr && y < 2) {
+                                destino->setTanque(tanqueParaColocar);
                                 seleccionados.push_back(tanqueParaColocar);
                                 tanqueParaColocar = nullptr;
                                 estado = SELECCION_TANQUE;
+                            } else {
+                                inputX.clear();
+                                inputY.clear();
+                                escribiendoY = false;
                             }
                         }
                     }
@@ -254,68 +278,90 @@ void mostrarMenuSeleccionTanquesJugador(
             }
         }
 
+        // --- Dibujo ---
         window.clear(sf::Color::Black);
 
-        sf::Text titulo("Selecciona tus tanques", font, 30);
-        titulo.setFillColor(sf::Color::White);
-        titulo.setPosition(100, 30);
+        // Título (igual al menú principal en color verde militar)
+        sf::Text titulo("Selecciona tus tanques", font, 32);
+        titulo.setFillColor(sf::Color(110, 180, 100));
+        titulo.setPosition(100, 50);
         window.draw(titulo);
 
+        // Texto volver (ESC) en gris claro
+        sf::Text volver("Volver (ESC)", font, 18);
+        volver.setFillColor(sf::Color(180, 180, 180));  // Gris claro
+        volver.setPosition(10, 10);
+        window.draw(volver);
+
         if (estado == SELECCION_TANQUE) {
-            for (int i = 0; i < opciones.size(); ++i) {
-                sf::Text texto(opciones[i], font, 24);
-                texto.setPosition(100, 100 + i * 40);
-                texto.setFillColor(i == seleccion ? sf::Color::Yellow : sf::Color::White);
-                window.draw(texto);
+            for (int i = 0; i < (int)opciones.size(); ++i) {
+                sf::Text txt(opciones[i], font, 26);
+                txt.setPosition(100, 120 + i * 50);
+
+                if (i == seleccion) {
+                    sf::FloatRect bounds = txt.getLocalBounds();
+                    sf::RectangleShape highlight(sf::Vector2f(bounds.width + 20, bounds.height + 18));
+                    highlight.setFillColor(sf::Color(110, 180, 100));  // Verde militar
+                    highlight.setPosition(txt.getPosition().x - 10, txt.getPosition().y - 8);
+                    window.draw(highlight);
+
+                    txt.setFillColor(sf::Color::Black);
+                } else {
+                    txt.setFillColor(sf::Color::White);
+                }
+
+                window.draw(txt);
             }
-        }
-        else if (estado == INGRESO_COORDENADAS) {
-            sf::Text info("Ingresa coordenadas Y X (ej: 1 0). Solo filas 0 y 1", font, 20);
+        } else {
+            sf::Text info("Ingresa Y X (ej: 1 0)", font, 20);
             info.setFillColor(sf::Color::Green);
-            info.setPosition(100, 100);
+            info.setPosition(100, 140);
             window.draw(info);
 
-            sf::Text inputTexto(("Y: " + inputY + "  X: " + inputX), font, 20);
-            inputTexto.setFillColor(sf::Color::White);
-            inputTexto.setPosition(100, 140);
-            window.draw(inputTexto);
+            sf::Text entrada("Y: " + inputY + " X: " + inputX, font, 20);
+            entrada.setFillColor(sf::Color::White);
+            entrada.setPosition(100, 170);
+            window.draw(entrada);
 
-            if (tanqueParaColocar != nullptr) {
+            if (tanqueParaColocar) {
                 sf::Text stats(
                     "Vida: " + std::to_string(tanqueParaColocar->getVida()) +
-                    " | Daño: " + std::to_string(tanqueParaColocar->getDaño()) +
-                    " | Movimiento: " + std::to_string(tanqueParaColocar->getMovimientoBase()),
-                    font, 18
-                );
+                    "  Daño: " + std::to_string(tanqueParaColocar->getDaño()) +
+                    "  Mov: " + std::to_string(tanqueParaColocar->getMovimientoBase()),
+                    font, 18);
                 stats.setFillColor(sf::Color::Cyan);
-                stats.setPosition(100, 180);
+                stats.setPosition(100, 210);
                 window.draw(stats);
             }
         }
 
-        sf::Text info2("Tanques seleccionados: " + std::to_string(seleccionados.size()), font, 20);
-        info2.setFillColor(sf::Color::White);
-        info2.setPosition(100, 250);
-        window.draw(info2);
+        // Cantidad de tanques seleccionados
+        sf::Text count("Tanques elegidos: " + std::to_string(seleccionados.size()), font, 20);
+        count.setFillColor(sf::Color::White);
+        count.setPosition(100, 300);
+        window.draw(count);
 
-        float offsetY = 250 + 30;
-        float anchoTablero = columnas * cellSize;
-        float offsetX = (window.getSize().x - anchoTablero) / 2.0f;
-
-        NodoSistema* temp = tableroPosiciones;
-        while (temp != nullptr) {
-            sf::RectangleShape cuadro(sf::Vector2f(cellSize, cellSize));
-            cuadro.setPosition(offsetX + temp->getPosY() * cellSize, offsetY + temp->getPosX() * cellSize);
-            cuadro.setFillColor(temp->getTanque() ? sf::Color::Red : sf::Color::White);
-            cuadro.setOutlineColor(sf::Color::Black);
-            cuadro.setOutlineThickness(1);
-            window.draw(cuadro);
-            temp = temp->getSiguiente();
+        float offsetY = 330;  
+        float ancho = columnas * cellSize;
+        float offsetX = (window.getSize().x - ancho) / 2.f;
+        NodoSistema* cur = tableroPosiciones;
+        while (cur) {
+            sf::RectangleShape sq({(float)cellSize, (float)cellSize});
+            sq.setPosition(offsetX + cur->getPosY() * cellSize,
+                           offsetY + cur->getPosX() * cellSize);
+            sq.setFillColor(cur->getTanque() ? sf::Color::Red : sf::Color::White);
+            sq.setOutlineColor(sf::Color::Black);
+            sq.setOutlineThickness(1);
+            window.draw(sq);
+            cur = cur->getSiguiente();
         }
 
         window.display();
     }
+
+    return false;
 }
+
 
 
 // Función que selecciona tanques para la IA
@@ -376,9 +422,14 @@ void desplegarTablero(
     sf::Texture& texturaTerreno1,
     sf::Texture& texturaTerreno2,
     sf::Texture& texturaTerreno3,
-    sf::Texture& texturaTanqueLigero,
-    sf::Texture& texturaTanqueMediano,
-    sf::Texture& texturaTanquePesado
+    // texturas jugador
+    sf::Texture& texturaTanqueLigeroJugador,
+    sf::Texture& texturaTanqueMedianoJugador,
+    sf::Texture& texturaTanquePesadoJugador,
+    // texturas IA
+    sf::Texture& texturaTanqueLigeroIA,
+    sf::Texture& texturaTanqueMedianoIA,
+    sf::Texture& texturaTanquePesadoIA
 ) {
     while (window.isOpen()) {
         sf::Event event;
@@ -391,12 +442,8 @@ void desplegarTablero(
 
         // Dibujar coordenadas X
         for (int col = 0; col < columnas; col++) {
-            sf::Text text;
-            text.setFont(font);
-            text.setString(std::to_string(col));
-            text.setCharacterSize(18);
+            sf::Text text(std::to_string(col), font, 18);
             text.setFillColor(sf::Color::White);
-
             sf::FloatRect bounds = text.getLocalBounds();
             float posX = col * cellSize + 50 + (cellSize - bounds.width) / 2.0f - bounds.left;
             text.setPosition(posX, 10);
@@ -405,12 +452,8 @@ void desplegarTablero(
 
         // Dibujar coordenadas Y
         for (int row = 0; row < filas; row++) {
-            sf::Text text;
-            text.setFont(font);
-            text.setString(std::to_string(row));
-            text.setCharacterSize(18);
+            sf::Text text(std::to_string(row), font, 18);
             text.setFillColor(sf::Color::White);
-
             sf::FloatRect bounds = text.getLocalBounds();
             float posY = row * cellSize + 50 + (cellSize - bounds.height) / 2.0f - bounds.top;
             text.setPosition(10, posY);
@@ -419,6 +462,7 @@ void desplegarTablero(
 
         NodoSistema* actual = tableroPosiciones;
         while (actual != nullptr) {
+            // Terreno
             sf::Sprite sprite;
             switch (actual->getTipoTerreno()) {
                 case 1: sprite.setTexture(texturaTerreno1); break;
@@ -426,7 +470,6 @@ void desplegarTablero(
                 case 3: sprite.setTexture(texturaTerreno3); break;
                 default: sprite.setColor(sf::Color::Red); break;
             }
-
             float x = actual->getPosY() * cellSize + 50;
             float y = actual->getPosX() * cellSize + 50;
             sprite.setPosition(x, y);
@@ -436,28 +479,46 @@ void desplegarTablero(
             );
             window.draw(sprite);
 
+            // Tanque
             if (actual->getTanque() != nullptr) {
                 sf::Sprite spriteTanque;
-                if(actual ->getTanque()->getMovimientoBase() == 6){
-                    spriteTanque.setTexture(texturaTanqueLigero);
-                } else if(actual ->getTanque()->getMovimientoBase() == 4){
-                    spriteTanque.setTexture(texturaTanqueMediano);
-                } else if(actual ->getTanque()->getMovimientoBase() == 2){
-                    spriteTanque.setTexture(texturaTanquePesado);
+                Tanque* t = actual->getTanque();
+                bool esIA = t->getIdTanque() >= 100;
+                int mov = t->getMovimientoBase();
+
+                // Elegir textura
+                if (mov == 6) {
+                    spriteTanque.setTexture(
+                        esIA ? texturaTanqueLigeroIA : texturaTanqueLigeroJugador
+                    );
+                } else if (mov == 4) {
+                    spriteTanque.setTexture(
+                        esIA ? texturaTanqueMedianoIA : texturaTanqueMedianoJugador
+                    );
+                } else if (mov == 2) {
+                    spriteTanque.setTexture(
+                        esIA ? texturaTanquePesadoIA : texturaTanquePesadoJugador
+                    );
                 }
 
-                
-                
-                float scaleFactor = 0.5f;
+                // Escala 50%
+                float scaleX = 0.5f * (float)cellSize / spriteTanque.getTexture()->getSize().x;
+                float scaleY = 0.5f * (float)cellSize / spriteTanque.getTexture()->getSize().y;
+                spriteTanque.setScale(scaleX, scaleY);
 
-                float tanqueScaleX = scaleFactor * ((float)cellSize / spriteTanque.getTexture()->getSize().x);
-                float tanqueScaleY = scaleFactor * ((float)cellSize / spriteTanque.getTexture()->getSize().y);
+                if (!esIA) {
+                    // Jugador: gira 180° y centra
+                    auto ts = spriteTanque.getTexture()->getSize();
+                    spriteTanque.setOrigin(ts.x / 2.f, ts.y / 2.f);
+                    spriteTanque.setPosition(x + cellSize / 2.f, y + cellSize / 2.f);
+                    spriteTanque.setRotation(180.f);
+                } else {
+                    // IA: sin giro, centrado sencillo
+                    float offsetX = (cellSize - spriteTanque.getTexture()->getSize().x * scaleX) / 2.f;
+                    float offsetY = (cellSize - spriteTanque.getTexture()->getSize().y * scaleY) / 2.f;
+                    spriteTanque.setPosition(x + offsetX, y + offsetY);
+                }
 
-                spriteTanque.setScale(tanqueScaleX, tanqueScaleY);
-
-                float offsetX = (cellSize - spriteTanque.getTexture()->getSize().x * tanqueScaleX) / 2.0f;
-                float offsetY = (cellSize - spriteTanque.getTexture()->getSize().y * tanqueScaleY) / 2.0f;
-                spriteTanque.setPosition(x + offsetX, y + offsetY);
                 window.draw(spriteTanque);
             }
 
@@ -469,16 +530,78 @@ void desplegarTablero(
 }
 
 
+
+int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
+    std::vector<std::string> opciones = {"Jugar", "Salir"};
+    int seleccion = 0;
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                return 1;  // Se cerró la ventana
+            } else if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Up) {
+                    seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Down) {
+                    seleccion = (seleccion + 1) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Enter) {
+                    return seleccion;  // 0 = Jugar, 1 = Salir
+                }
+            }
+        }
+
+        window.clear(sf::Color::Black);
+
+        // Título centrado
+        sf::Text titulo("FERRUM BELLUM", font, 54);
+        titulo.setFillColor(sf::Color(110, 180, 100));  // Verde militar
+        titulo.setStyle(sf::Text::Bold);
+        sf::FloatRect boundsTitulo = titulo.getLocalBounds();
+        titulo.setOrigin(boundsTitulo.width / 2, boundsTitulo.height / 2);
+        titulo.setPosition(window.getSize().x / 2, 100);
+        window.draw(titulo);
+
+        // Opciones del menú
+        for (int i = 0; i < (int)opciones.size(); ++i) {
+            sf::Text texto(opciones[i], font, 32);
+            texto.setStyle(sf::Text::Bold);
+            sf::FloatRect bounds = texto.getLocalBounds();
+            texto.setOrigin(bounds.width / 2, bounds.height / 2);
+            texto.setPosition(window.getSize().x / 2, 220 + i * 70);
+
+            if (i == seleccion) {
+                // Rectángulo de fondo con color verde militar
+                sf::RectangleShape highlight(sf::Vector2f(bounds.width + 20, bounds.height + 20));
+                highlight.setFillColor(sf::Color(110, 180, 100));
+                highlight.setOrigin(highlight.getSize().x / 2, highlight.getSize().y / 2);
+                highlight.setPosition(texto.getPosition());
+                window.draw(highlight);
+
+                texto.setFillColor(sf::Color::Black);
+            } else {
+                texto.setFillColor(sf::Color::White);
+            }
+
+            window.draw(texto);
+        }
+
+        window.display();
+    }
+
+    return 1;
+}
+
+
 int main() {
-
-    stack <Tanque*> tanquesJugador;
-    stack <Tanque*> tanquesIA;
-
     const int cellSize = 100;
-    const int filas = 5;
+    const int filas    = 5;
     const int columnas = 5;
 
-    sf::RenderWindow window(sf::VideoMode(columnas * cellSize + 50, filas * cellSize + 50), "Ferrum Bellum");
+    sf::RenderWindow window(
+        sf::VideoMode(columnas * cellSize + 50, filas * cellSize + 50),
+        "Ferrum Bellum"
+    );
 
     // Cargar fuente
     sf::Font font;
@@ -487,41 +610,69 @@ int main() {
         return -1;
     }
 
-    // Cargar texturas
-    sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3, 
-    texturaTanque1Jugadores, texturaTanque2Jugadores, texturaTanque3Jugadores,
-    texturaTanque4IA, texturaTanque5IA, texturaTanque6IA;
-    if (!texturaTerreno1.loadFromFile("Imagenes/Terreno/planicie.png") ||
-        !texturaTerreno2.loadFromFile("Imagenes/Terreno/bosque.png") ||
-        !texturaTerreno3.loadFromFile("Imagenes/Terreno/montaniaNevada.png") ||
-        !texturaTanque1Jugadores.loadFromFile("Imagenes/Tanques/ligeroA-removebg-preview.png") ||
-        !texturaTanque2Jugadores.loadFromFile("Imagenes/Tanques/medianoA-removebg-preview.png") ||
-        !texturaTanque3Jugadores.loadFromFile("Imagenes/Tanques/pesadoA-removebg-preview.png") ||
-        !texturaTanque4IA.loadFromFile("Imagenes/Tanques/ligeroR-removebg-preview.png") ||
-        !texturaTanque5IA.loadFromFile("Imagenes/Tanques/medianoR-removebg-preview.png") ||
-        !texturaTanque6IA.loadFromFile("Imagenes/Tanques/pesadoR-removebg-preview.png")) {
-        std::cout << "Error cargando una o más texturas." << std::endl;
-        return -1;
+    while (window.isOpen()) {
+        int opcion = mostrarMenuPrincipal(window, font);
+
+        if (opcion == 0) {  // Jugar
+            // Pilas de tanques
+            stack<Tanque*> tanquesJugador; 
+            stack<Tanque*> tanquesIA;
+
+            // Cargar texturas
+            sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3;
+            sf::Texture texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador;
+            sf::Texture texturaTanque1IA, texturaTanque2IA, texturaTanque3IA;
+            if (!texturaTerreno1.loadFromFile("Imagenes/Terreno/planicie.png") ||
+                !texturaTerreno2.loadFromFile("Imagenes/Terreno/bosque.png") ||
+                !texturaTerreno3.loadFromFile("Imagenes/Terreno/montaniaNevada.png") ||
+                !texturaTanque1Jugador.loadFromFile("Imagenes/Tanques/ligeroA-removebg-preview.png") ||
+                !texturaTanque2Jugador.loadFromFile("Imagenes/Tanques/medianoA-removebg-preview.png") ||
+                !texturaTanque3Jugador.loadFromFile("Imagenes/Tanques/pesadoA-removebg-preview.png") ||
+                !texturaTanque1IA.loadFromFile("Imagenes/Tanques/ligeroR-removebg-preview.png") ||
+                !texturaTanque2IA.loadFromFile("Imagenes/Tanques/medianoR-removebg-preview.png") ||
+                !texturaTanque3IA.loadFromFile("Imagenes/Tanques/pesadoR-removebg-preview.png")) {
+                std::cout << "Error cargando texturas." << std::endl;
+                return -1;
+            }
+
+            // Crear el tablero
+            NodoSistema* tableroPosiciones = crearTablero();
+
+            // Mostrar menú de selección de tanques
+            bool seleccionOk = mostrarMenuSeleccionTanquesJugador(
+                window, font, tanquesJugador, tableroPosiciones
+            );
+            if (!seleccionOk) {
+                continue;
+            }
+
+            // Seleccionar IA y luego desplegar
+            seleccionarTanquesIA(tanquesIA, tableroPosiciones);
+
+            desplegarTablero(
+                window, font,
+                filas, columnas, cellSize,
+                tableroPosiciones,
+                texturaTerreno1, texturaTerreno2, texturaTerreno3,
+                texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
+                texturaTanque1IA, texturaTanque2IA, texturaTanque3IA
+            );
+
+            // Liberar memoria de tanques
+            while (!tanquesJugador.empty()) {
+                delete tanquesJugador.top();
+                tanquesJugador.pop();
+            }
+            while (!tanquesIA.empty()) {
+                delete tanquesIA.top();
+                tanquesIA.pop();
+            }
+
+        }
+        else if (opcion == 1) {  // Salir
+            window.close();
+        }
     }
-
-    // Crear tablero
-    NodoSistema* tableroPosiciones = crearTablero(); // Asegúrate de que esta función esté implementada
-
-    // Mostrar menú inicial
-    mostrarMenuSeleccionTanquesJugador(window, font, tanquesJugador, tableroPosiciones);
-    seleccionarTanquesIA(tanquesIA, tableroPosiciones);
-
-    // Asignar tanques
-    Tanque* tanque1 = new TanquePesado(1);
-    Tanque* tanque2 = new TanquePesado(2);
-    Tanque* tanque3 = new TanquePesado(3);
-    Tanque* tanque4 = new TanquePesado(4);
-
-
-    // Desplegar tablero
-    desplegarTablero(window, font, filas, columnas, cellSize, tableroPosiciones,
-                     texturaTerreno1, texturaTerreno2, texturaTerreno3,
-                     texturaTanque1Jugadores, texturaTanque2Jugadores, texturaTanque3Jugadores);
 
     return 0;
 }
