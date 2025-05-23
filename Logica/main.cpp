@@ -130,6 +130,42 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     }
 }
 
+// Función que mueve un tanque a una posición específica
+void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
+    cout << "Tanque ID: " << tanque->getIdTanque() << " intentando moverse a (" << posX << ", " << posY << ")" << endl;
+
+    NodoSistema* destino = nullptr;
+    NodoSistema* origen = nullptr;
+
+    NodoSistema* temp = tablero;
+    while (temp != nullptr) {
+        if (temp->getTanque() == tanque) {
+            origen = temp;  // Nodo donde está el tanque actualmente
+        }
+        if (temp->getPosX() == posX && temp->getPosY() == posY) {
+            destino = temp; // Nodo destino
+        }
+        temp = temp->getSiguiente();
+    }
+
+    if (!destino) {
+        cout << "Error: la posición destino no existe en el tablero." << endl;
+        return;
+    }
+
+    if (destino->getTanque() != nullptr) {
+        cout << "Error: ya hay un tanque en la posición destino." << endl;
+        return;
+    }
+
+    if (origen) {
+        origen->setTanque(nullptr);  // Desocupa la posición anterior
+    }
+
+    destino->setTanque(tanque);  // Mueve el tanque a la nueva posición
+    cout << "Tanque movido exitosamente a la posición: (" << posX << ", " << posY << ")" << endl;
+}
+
 
 bool mostrarMenuSeleccionTanquesJugador(
     sf::RenderWindow& window,
@@ -529,7 +565,63 @@ void desplegarTablero(
     }
 }
 
+int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
+    std::vector<std::string> opciones = {"Fácil", "Media", "Difícil"};
+    int seleccion = 0;
 
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                return -1;  // Se cerró la ventana
+            } else if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Up) {
+                    seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Down) {
+                    seleccion = (seleccion + 1) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Enter) {
+                    return seleccion;  // 0 = Fácil, 1 = Media, 2 = Difícil
+                }
+            }
+        }
+
+        window.clear(sf::Color::Black);
+
+        // Título
+        sf::Text titulo("Selecciona la Dificultad", font, 44);
+        titulo.setFillColor(sf::Color(110, 180, 100));
+        titulo.setStyle(sf::Text::Bold);
+        sf::FloatRect boundsTitulo = titulo.getLocalBounds();
+        titulo.setOrigin(boundsTitulo.width / 2, boundsTitulo.height / 2);
+        titulo.setPosition(window.getSize().x / 2, 100);
+        window.draw(titulo);
+
+        for (int i = 0; i < (int)opciones.size(); ++i) {
+            sf::Text texto(opciones[i], font, 32);
+            texto.setStyle(sf::Text::Bold);
+            sf::FloatRect bounds = texto.getLocalBounds();
+            texto.setOrigin(bounds.width / 2, bounds.height / 2);
+            texto.setPosition(window.getSize().x / 2, 220 + i * 70);
+
+            if (i == seleccion) {
+                sf::RectangleShape highlight(sf::Vector2f(bounds.width + 20, bounds.height + 20));
+                highlight.setFillColor(sf::Color(110, 180, 100));
+                highlight.setOrigin(highlight.getSize().x / 2, highlight.getSize().y / 2);
+                highlight.setPosition(texto.getPosition());
+                window.draw(highlight);
+                texto.setFillColor(sf::Color::Black);
+            } else {
+                texto.setFillColor(sf::Color::White);
+            }
+
+            window.draw(texto);
+        }
+
+        window.display();
+    }
+
+    return -1;
+}
 
 int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {"Jugar", "Salir"};
@@ -593,6 +685,7 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
 }
 
 
+
 int main() {
     const int cellSize = 100;
     const int filas    = 5;
@@ -614,6 +707,10 @@ int main() {
         int opcion = mostrarMenuPrincipal(window, font);
 
         if (opcion == 0) {  // Jugar
+            int dificultad = mostrarMenuDificultad(window, font);
+            if(dificultad == -1) {
+                continue;  // Se cerró la ventana
+            }
             // Pilas de tanques
             stack<Tanque*> tanquesJugador; 
             stack<Tanque*> tanquesIA;
