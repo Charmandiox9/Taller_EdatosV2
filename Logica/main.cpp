@@ -66,25 +66,17 @@ NodoSistema* crearTablero() {
 
 // Función que dispara un tanque a una posición específica
 void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
-    // Implementar la lógica de disparo aquí
     cout << "Tanque ID: " << tanque->getIdTanque() << " disparando!" << endl;
-
-    NodoSistema* temp = tablero;
-    TanquePesado* tanquePesado = dynamic_cast<TanquePesado*>(tanque);
-    if (tanquePesado == nullptr) {
-        cout << "Error: El tanque no es de tipo TanquePesado." << endl;
-        return;
-    }
 
     // Buscar la posición del tanque que dispara
     NodoSistema* tanqueDisparando = nullptr;
-    NodoSistema* tempBusqueda = tablero;
-    while (tempBusqueda != nullptr) {
-        if (tempBusqueda->getTanque() == tanque) {
-            tanqueDisparando = tempBusqueda;  // Nodo donde está el tanque que dispara
+    NodoSistema* temp = tablero;
+    while (temp != nullptr) {
+        if (temp->getTanque() == tanque) {
+            tanqueDisparando = temp;
             break;
         }
-        tempBusqueda = tempBusqueda->getSiguiente();
+        temp = temp->getSiguiente();
     }
 
     if (tanqueDisparando == nullptr) {
@@ -92,30 +84,28 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
         return;
     }
 
-    // Mostrar la posición del tanque que dispara
     cout << "Tanque que dispara se encuentra en la posicion: (" 
          << tanqueDisparando->getPosX() << ", " << tanqueDisparando->getPosY() << ")" << endl;
 
-    // Buscar el nodo donde se encuentra el tanque objetivo
+    // Buscar el nodo objetivo
     temp = tablero;
     srand(time(0));
     while (temp != nullptr) {
         if (temp->getPosX() == posX && temp->getPosY() == posY) {
             Tanque* tanqueEnPosicion = temp->getTanque();
-            
-            // Calcular la probabilidad del disparo (por ejemplo, afectado por terreno)
+
             int terrenoInicio = tanqueDisparando->getTipoTerreno();
             int terrenoFinal = temp->getTipoTerreno();
             double probabilidad = tanque->getProbabilidadDeImpacto(terrenoInicio, terrenoFinal);
 
             cout << "Probabilidad de acierto: " << probabilidad * 100 << "%" << endl;
 
-            // Verificar si el disparo tiene éxito
-            int numeroAleatorio = rand() % 100; // Generar un número aleatorio entre 0 y 99
+            int numeroAleatorio = rand() % 100;
             cout << "Numero aleatorio: " << numeroAleatorio << endl;
-            if (numeroAleatorio < (probabilidad * 100)) { //Si el número generado es menor que la probabilidad de acierto, el disparo tiene éxito
+
+            if (numeroAleatorio < (probabilidad * 100)) {
                 if (tanqueEnPosicion != nullptr) {
-                    tanqueEnPosicion->actualizarVida(tanquePesado->getDaño());
+                    tanqueEnPosicion->actualizarVida(tanque->getDaño());
                     cout << "Tanque ID: " << tanqueEnPosicion->getIdTanque() << " ha sido alcanzado!" << endl;
                     cout << "Vida restante: " << tanqueEnPosicion->getVida() << endl;
                 } else {
@@ -126,9 +116,10 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
             }
             break;
         }
-    temp = temp->getSiguiente();
+        temp = temp->getSiguiente();
     }
 }
+
 
 // Función que mueve un tanque a una posición específica
 void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
@@ -317,15 +308,14 @@ bool mostrarMenuSeleccionTanquesJugador(
         // --- Dibujo ---
         window.clear(sf::Color::Black);
 
-        // Título (igual al menú principal en color verde militar)
+
         sf::Text titulo("Selecciona tus tanques", font, 32);
         titulo.setFillColor(sf::Color(110, 180, 100));
         titulo.setPosition(100, 50);
         window.draw(titulo);
 
-        // Texto volver (ESC) en gris claro
         sf::Text volver("Volver (ESC)", font, 18);
-        volver.setFillColor(sf::Color(180, 180, 180));  // Gris claro
+        volver.setFillColor(sf::Color(180, 180, 180));
         volver.setPosition(10, 10);
         window.draw(volver);
 
@@ -458,112 +448,99 @@ void desplegarTablero(
     sf::Texture& texturaTerreno1,
     sf::Texture& texturaTerreno2,
     sf::Texture& texturaTerreno3,
-    // texturas jugador
     sf::Texture& texturaTanqueLigeroJugador,
     sf::Texture& texturaTanqueMedianoJugador,
     sf::Texture& texturaTanquePesadoJugador,
-    // texturas IA
     sf::Texture& texturaTanqueLigeroIA,
     sf::Texture& texturaTanqueMedianoIA,
     sf::Texture& texturaTanquePesadoIA
 ) {
-    while (window.isOpen()) {
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed)
-                window.close();
+    const int offsetTableroX = 50;
+    const int offsetTableroY = 90;
+
+    // Dibujar coordenadas X (col)
+    for (int col = 0; col < columnas; col++) {
+        sf::Text text(std::to_string(col), font, 18);
+        text.setFillColor(sf::Color::White);
+        sf::FloatRect bounds = text.getLocalBounds();
+
+        float posX = col * cellSize + offsetTableroX + (cellSize - bounds.width) / 2.0f - bounds.left;
+        float posY = offsetTableroY - 30;  // encima del tablero
+        text.setPosition(posX, posY);
+        window.draw(text);
+    }
+
+    // Dibujar coordenadas Y (filas)
+    for (int row = 0; row < filas; row++) {
+        sf::Text text(std::to_string(row), font, 18);
+        text.setFillColor(sf::Color::White);
+        sf::FloatRect bounds = text.getLocalBounds();
+
+        float posX = offsetTableroX - 25;  // a la izquierda del tablero
+        float posY = row * cellSize + offsetTableroY + (cellSize - bounds.height) / 2.0f - bounds.top;
+        text.setPosition(posX, posY);
+        window.draw(text);
+    }
+
+    // Recorrer el tablero y dibujar terrenos + tanques
+    NodoSistema* actual = tableroPosiciones;
+    while (actual != nullptr) {
+        // Terreno
+        sf::Sprite sprite;
+        switch (actual->getTipoTerreno()) {
+            case 1: sprite.setTexture(texturaTerreno1); break;
+            case 2: sprite.setTexture(texturaTerreno2); break;
+            case 3: sprite.setTexture(texturaTerreno3); break;
+            default: sprite.setColor(sf::Color::Red); break;
         }
 
-        window.clear();
+        float x = actual->getPosY() * cellSize + offsetTableroX;
+        float y = actual->getPosX() * cellSize + offsetTableroY;
+        sprite.setPosition(x, y);
+        sprite.setScale(
+            (float)cellSize / sprite.getTexture()->getSize().x,
+            (float)cellSize / sprite.getTexture()->getSize().y
+        );
+        window.draw(sprite);
 
-        // Dibujar coordenadas X
-        for (int col = 0; col < columnas; col++) {
-            sf::Text text(std::to_string(col), font, 18);
-            text.setFillColor(sf::Color::White);
-            sf::FloatRect bounds = text.getLocalBounds();
-            float posX = col * cellSize + 50 + (cellSize - bounds.width) / 2.0f - bounds.left;
-            text.setPosition(posX, 10);
-            window.draw(text);
-        }
+        // Tanques
+        if (actual->getTanque() != nullptr) {
+            sf::Sprite spriteTanque;
+            Tanque* t = actual->getTanque();
+            bool esIA = t->getIdTanque() >= 100;
+            int mov = t->getMovimientoBase();
 
-        // Dibujar coordenadas Y
-        for (int row = 0; row < filas; row++) {
-            sf::Text text(std::to_string(row), font, 18);
-            text.setFillColor(sf::Color::White);
-            sf::FloatRect bounds = text.getLocalBounds();
-            float posY = row * cellSize + 50 + (cellSize - bounds.height) / 2.0f - bounds.top;
-            text.setPosition(10, posY);
-            window.draw(text);
-        }
+            if (mov == 6)
+                spriteTanque.setTexture(esIA ? texturaTanqueLigeroIA : texturaTanqueLigeroJugador);
+            else if (mov == 4)
+                spriteTanque.setTexture(esIA ? texturaTanqueMedianoIA : texturaTanqueMedianoJugador);
+            else if (mov == 2)
+                spriteTanque.setTexture(esIA ? texturaTanquePesadoIA : texturaTanquePesadoJugador);
 
-        NodoSistema* actual = tableroPosiciones;
-        while (actual != nullptr) {
-            // Terreno
-            sf::Sprite sprite;
-            switch (actual->getTipoTerreno()) {
-                case 1: sprite.setTexture(texturaTerreno1); break;
-                case 2: sprite.setTexture(texturaTerreno2); break;
-                case 3: sprite.setTexture(texturaTerreno3); break;
-                default: sprite.setColor(sf::Color::Red); break;
-            }
-            float x = actual->getPosY() * cellSize + 50;
-            float y = actual->getPosX() * cellSize + 50;
-            sprite.setPosition(x, y);
-            sprite.setScale(
-                (float)cellSize / sprite.getTexture()->getSize().x,
-                (float)cellSize / sprite.getTexture()->getSize().y
-            );
-            window.draw(sprite);
+            float scaleX = 0.5f * (float)cellSize / spriteTanque.getTexture()->getSize().x;
+            float scaleY = 0.5f * (float)cellSize / spriteTanque.getTexture()->getSize().y;
+            spriteTanque.setScale(scaleX, scaleY);
 
-            // Tanque
-            if (actual->getTanque() != nullptr) {
-                sf::Sprite spriteTanque;
-                Tanque* t = actual->getTanque();
-                bool esIA = t->getIdTanque() >= 100;
-                int mov = t->getMovimientoBase();
-
-                // Elegir textura
-                if (mov == 6) {
-                    spriteTanque.setTexture(
-                        esIA ? texturaTanqueLigeroIA : texturaTanqueLigeroJugador
-                    );
-                } else if (mov == 4) {
-                    spriteTanque.setTexture(
-                        esIA ? texturaTanqueMedianoIA : texturaTanqueMedianoJugador
-                    );
-                } else if (mov == 2) {
-                    spriteTanque.setTexture(
-                        esIA ? texturaTanquePesadoIA : texturaTanquePesadoJugador
-                    );
-                }
-
-                // Escala 50%
-                float scaleX = 0.5f * (float)cellSize / spriteTanque.getTexture()->getSize().x;
-                float scaleY = 0.5f * (float)cellSize / spriteTanque.getTexture()->getSize().y;
-                spriteTanque.setScale(scaleX, scaleY);
-
-                if (!esIA) {
-                    // Jugador: gira 180° y centra
-                    auto ts = spriteTanque.getTexture()->getSize();
-                    spriteTanque.setOrigin(ts.x / 2.f, ts.y / 2.f);
-                    spriteTanque.setPosition(x + cellSize / 2.f, y + cellSize / 2.f);
-                    spriteTanque.setRotation(180.f);
-                } else {
-                    // IA: sin giro, centrado sencillo
-                    float offsetX = (cellSize - spriteTanque.getTexture()->getSize().x * scaleX) / 2.f;
-                    float offsetY = (cellSize - spriteTanque.getTexture()->getSize().y * scaleY) / 2.f;
-                    spriteTanque.setPosition(x + offsetX, y + offsetY);
-                }
-
-                window.draw(spriteTanque);
+            if (!esIA) {
+                auto ts = spriteTanque.getTexture()->getSize();
+                spriteTanque.setOrigin(ts.x / 2.f, ts.y / 2.f);
+                spriteTanque.setPosition(x + cellSize / 2.f, y + cellSize / 2.f);
+                spriteTanque.setRotation(180.f);
+            } else {
+                float offsetX = (cellSize - spriteTanque.getTexture()->getSize().x * scaleX) / 2.f;
+                float offsetY = (cellSize - spriteTanque.getTexture()->getSize().y * scaleY) / 2.f;
+                spriteTanque.setPosition(x + offsetX, y + offsetY);
             }
 
-            actual = actual->getSiguiente();
+            window.draw(spriteTanque);
         }
 
-        window.display();
+        actual = actual->getSiguiente();
     }
 }
+
+
+
 
 int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {"Fácil", "Media", "Difícil"};
@@ -686,13 +663,273 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
 
 
 
+void menuAccionesJugador(
+    sf::RenderWindow& window,
+    sf::Font& font,
+    std::stack<Tanque*> tanquesJugadorStack,
+    NodoSistema* tablero,
+    int filas,
+    int columnas,
+    int cellSize,
+    sf::Texture& texturaTerreno1,
+    sf::Texture& texturaTerreno2,
+    sf::Texture& texturaTerreno3,
+    sf::Texture& texturaTanqueLigeroJugador,
+    sf::Texture& texturaTanqueMedianoJugador,
+    sf::Texture& texturaTanquePesadoJugador,
+    sf::Texture& texturaTanqueLigeroIA,
+    sf::Texture& texturaTanqueMedianoIA,
+    sf::Texture& texturaTanquePesadoIA
+) {
+    std::vector<Tanque*> tanquesJugador;
+    std::stack<Tanque*> copia = tanquesJugadorStack;
+    while (!copia.empty()) {
+        tanquesJugador.push_back(copia.top());
+        copia.pop();
+    }
+    std::reverse(tanquesJugador.begin(), tanquesJugador.end());
+
+    if (tanquesJugador.empty()) {
+        std::cout << "ERROR: No hay tanques para el jugador." << std::endl;
+        return;
+    }
+
+    int indiceTanque = 0;
+    int paso = 0;
+    std::string accion = "Moverse";
+    int coordX = 0, coordY = 0;
+    bool coordenadaY = true;
+    bool turnoCompletado = false;
+    bool errorCoordenadas = false;
+
+    const int infoY = 10;
+    const int menuX = columnas * cellSize + 70;
+    const int menuY = 100;
+    const int offsetTableroX = 50;
+    const int offsetTableroY = 90;
+
+    sf::RectangleShape previewRect(sf::Vector2f(cellSize - 2, cellSize - 2));
+    previewRect.setOutlineThickness(1);
+    previewRect.setOutlineColor(sf::Color::Black);
+
+    while (window.isOpen() && !turnoCompletado) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) window.close();
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Escape) return;
+
+                if (paso == 0) {
+                    if (event.key.code == sf::Keyboard::Up)
+                        indiceTanque = (indiceTanque - 1 + tanquesJugador.size()) % tanquesJugador.size();
+                    if (event.key.code == sf::Keyboard::Down)
+                        indiceTanque = (indiceTanque + 1) % tanquesJugador.size();
+                    if (event.key.code == sf::Keyboard::Enter) {
+                        paso = 1;
+                        errorCoordenadas = false;
+                    }
+                }
+                else if (paso == 1) {
+                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down)
+                        accion = (accion == "Moverse") ? "Atacar" : "Moverse";
+                    if (event.key.code == sf::Keyboard::Enter) {
+                        paso = 2;
+                        coordX = coordY = 0;
+                        coordenadaY = true;
+                        errorCoordenadas = false;
+                    }
+                }
+                else if (paso == 2) {
+                    int digit = -1;
+                    if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9)
+                        digit = event.key.code - sf::Keyboard::Num0;
+                    else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9)
+                        digit = event.key.code - sf::Keyboard::Numpad0;
+
+                    if (digit != -1) {
+                        if (coordenadaY && coordY < 100)
+                            coordY = coordY * 10 + digit;
+                        else if (!coordenadaY && coordX < 100)
+                            coordX = coordX * 10 + digit;
+                    }
+
+                    if (event.key.code == sf::Keyboard::Space || event.key.code == sf::Keyboard::Right)
+                        coordenadaY = !coordenadaY;
+
+                    if (event.key.code == sf::Keyboard::Left)
+                        coordenadaY = true;
+
+                    if (event.key.code == sf::Keyboard::BackSpace) {
+                        if (coordenadaY)
+                            coordY /= 10;
+                        else
+                            coordX /= 10;
+                    }
+
+                    if (event.key.code == sf::Keyboard::Enter) {
+                        if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
+                            Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
+                            if (accion == "Moverse")
+                                moverse(tanqueSeleccionado, tablero, coordX, coordY);
+                            else
+                                disparar(tanqueSeleccionado, tablero, coordX, coordY);
+                            turnoCompletado = true;
+                        } else {
+                            errorCoordenadas = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        window.clear();
+
+        // Recuadro superior de información
+        const int infoPanelHeight = 50;
+        sf::RectangleShape infoPanel(sf::Vector2f(window.getSize().x, infoPanelHeight));
+        infoPanel.setPosition(0, 0);
+        infoPanel.setFillColor(sf::Color(30, 30, 30, 220));
+        infoPanel.setOutlineColor(sf::Color::White);
+        infoPanel.setOutlineThickness(2);
+        window.draw(infoPanel);
+
+        // Texto de información de tanques
+        for (size_t i = 0; i < tanquesJugador.size(); ++i) {
+            std::string tipo;
+            int dmg = tanquesJugador[i]->getDaño();
+            if (dmg == 100) tipo = "Ligero";
+            else if (dmg == 150) tipo = "Mediano";
+            else if (dmg == 200) tipo = "Pesado";
+            else tipo = "Desconocido";
+
+            sf::Text info("Tanque " + std::to_string(i + 1) + " (" + tipo + ") Vida: " + std::to_string(tanquesJugador[i]->getVida()), font, 16);
+            info.setPosition(20 + i * 250, 15);
+            info.setFillColor(i == indiceTanque ? sf::Color::Yellow : sf::Color::White);
+            window.draw(info);
+        }
+
+        desplegarTablero(
+            window, font, filas, columnas, cellSize, tablero,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
+        );
+
+        if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
+            previewRect.setPosition(coordX * cellSize + offsetTableroX + 1, coordY * cellSize + offsetTableroY + 1);
+            previewRect.setFillColor((accion == "Moverse") ? sf::Color(0, 255, 0, 100) : sf::Color(255, 0, 0, 100));
+            window.draw(previewRect);
+        }
+
+        const int menuWidth = 230;
+        const int menuHeight = 150;
+        const int menuPadding = 10;
+
+        sf::RectangleShape menuBackground(sf::Vector2f(menuWidth, menuHeight));
+        menuBackground.setPosition(menuX - menuPadding, menuY - menuPadding);
+        menuBackground.setFillColor(sf::Color(50, 50, 50, 200));
+        menuBackground.setOutlineColor(sf::Color::White);
+        menuBackground.setOutlineThickness(2);
+        window.draw(menuBackground);
+
+        sf::Text menu;
+        menu.setFont(font);
+        menu.setCharacterSize(20);
+        menu.setFillColor(sf::Color::White);
+        menu.setPosition(menuX, menuY);
+
+        if (paso == 0)
+            menu.setString("Selecciona un tanque\n(UP/DOWN)\nENTER para confirmar");
+        else if (paso == 1)
+            menu.setString("Acción: " + accion + "\n(UP/DOWN para cambiar)\nENTER para confirmar");
+        else if (paso == 2) {
+            std::string mensaje = "Ingresa coordenadas:\n";
+            mensaje += "Y: " + std::to_string(coordY) + "  X: " + std::to_string(coordX);
+            mensaje += "\nSPACE para cambiar entre Y/X\nENTER para ejecutar\nBACKSPACE para borrar";
+            if (errorCoordenadas)
+                mensaje += "\n[Coordenadas inválidas]";
+            menu.setString(mensaje);
+        }
+
+        window.draw(menu);
+        window.display();
+    }
+}
+
+void bucleDeCombate(
+    sf::RenderWindow& window,
+    sf::Font& font,
+    std::stack<Tanque*> tanquesJugador,
+    std::stack<Tanque*> tanquesIA,
+    NodoSistema* tablero,
+    int filas,
+    int columnas,
+    int cellSize,
+    sf::Texture& texturaTerreno1,
+    sf::Texture& texturaTerreno2,
+    sf::Texture& texturaTerreno3,
+    sf::Texture& texturaTanqueLigeroJugador,
+    sf::Texture& texturaTanqueMedianoJugador,
+    sf::Texture& texturaTanquePesadoJugador,
+    sf::Texture& texturaTanqueLigeroIA,
+    sf::Texture& texturaTanqueMedianoIA,
+    sf::Texture& texturaTanquePesadoIA
+) {
+    while (window.isOpen()) {
+        // Verificar si todos los tanques de un bando fueron destruidos
+        bool jugadorSinTanques = true;
+        std::stack<Tanque*> tempJugador = tanquesJugador;
+        while (!tempJugador.empty()) {
+            if (tempJugador.top()->getVida() > 0) {
+                jugadorSinTanques = false;
+                break;
+            }
+            tempJugador.pop();
+        }
+
+        bool iaSinTanques = true;
+        std::stack<Tanque*> tempIA = tanquesIA;
+        while (!tempIA.empty()) {
+            if (tempIA.top()->getVida() > 0) {
+                iaSinTanques = false;
+                break;
+            }
+            tempIA.pop();
+        }
+
+        if (jugadorSinTanques || iaSinTanques) {
+            std::string mensajeFinal = jugadorSinTanques ? "¡Has perdido!" : "¡Has ganado!";
+            std::cout << mensajeFinal << std::endl;
+            // Aquí podrías dibujar un mensaje en pantalla en lugar de solo consola
+            return;
+        }
+
+        // Turno del jugador
+        menuAccionesJugador(
+            window, font, tanquesJugador, tablero, filas, columnas, cellSize,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
+        );
+
+        // Turno de la IA (si tienes una función de IA)
+        // menuAccionesIA(...); // Aquí llamas a la IA si la tienes implementada
+    }
+}
+
+
+
 int main() {
     const int cellSize = 100;
     const int filas    = 5;
     const int columnas = 5;
 
+    // Ajustar tamaño ventana para info arriba y menú a la derecha
+    int anchoVentana = columnas * cellSize + 300;  // 300 px para menú derecho y margen
+    int altoVentana  = filas * cellSize + 100;     // 100 px para info arriba y margen
+
     sf::RenderWindow window(
-        sf::VideoMode(columnas * cellSize + 50, filas * cellSize + 50),
+        sf::VideoMode(anchoVentana, altoVentana),
         "Ferrum Bellum"
     );
 
@@ -708,12 +945,12 @@ int main() {
 
         if (opcion == 0) {  // Jugar
             int dificultad = mostrarMenuDificultad(window, font);
-            if(dificultad == -1) {
+            if (dificultad == -1) {
                 continue;  // Se cerró la ventana
             }
             // Pilas de tanques
-            stack<Tanque*> tanquesJugador; 
-            stack<Tanque*> tanquesIA;
+            std::stack<Tanque*> tanquesJugador;
+            std::stack<Tanque*> tanquesIA;
 
             // Cargar texturas
             sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3;
@@ -746,13 +983,13 @@ int main() {
             // Seleccionar IA y luego desplegar
             seleccionarTanquesIA(tanquesIA, tableroPosiciones);
 
-            desplegarTablero(
-                window, font,
-                filas, columnas, cellSize,
-                tableroPosiciones,
-                texturaTerreno1, texturaTerreno2, texturaTerreno3,
-                texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
-                texturaTanque1IA, texturaTanque2IA, texturaTanque3IA
+            bucleDeCombate(
+            window, font,
+            tanquesJugador, tanquesIA, tableroPosiciones,
+            filas, columnas, cellSize,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
+            texturaTanque1IA, texturaTanque2IA, texturaTanque3IA
             );
 
             // Liberar memoria de tanques
@@ -764,7 +1001,6 @@ int main() {
                 delete tanquesIA.top();
                 tanquesIA.pop();
             }
-
         }
         else if (opcion == 1) {  // Salir
             window.close();
