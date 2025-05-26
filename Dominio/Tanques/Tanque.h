@@ -16,12 +16,12 @@ public:
 
     int getIdTanque() const;
     int getVida() const;
-    virtual int getdanio() const;
+    virtual int getDanio() const;
     virtual int getMovimientoBase() const;
 
     void setId(int nuevoId);
     void setVida(int nuevaVida);
-    virtual void setdanio(int nuevodanio);
+    virtual void setDanio(int nuevodanio);
     virtual void setMovimientoBase(int nuevoMovimientoBase);
 
     virtual ~Tanque() = default;
