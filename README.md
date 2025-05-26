@@ -44,11 +44,12 @@ Este proyecto utiliza la versión dinámica de SFML y está diseñado para compi
 - Instalar SFML usando MSYS2:
   ```bash
   pacman -S mingw-w64-ucrt-x86_64-sfml
-  ```
+  
 
 ## Compilación
 
 - Ejecuta el siguiente comando desde la raíz del proyecto:
+  ```bash
   C:/msys64/ucrt64/bin/g++.exe -g Logica/main.cpp Dominio/Tanques/Tanque.cpp Dominio/Tanques/TanquePesado.cpp Dominio/Tanques/TanqueLigero.cpp Dominio/Tanques/TanqueMediano.cpp Dominio/Nodos/NodoSistema.cpp -I C:/msys64/ucrt64/include -o app.exe -L C:/msys64/ucrt64/lib -lsfml-graphics -lsfml-window -lsfml-system -lopengl32 -lfreetype -lwinmm -lgdi32
 
 ## Ejecución
