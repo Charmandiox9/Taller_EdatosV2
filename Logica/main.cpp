@@ -410,7 +410,7 @@ void seleccionarTanquesIA(
     while (temp != nullptr) {
         int y = temp->getPosY();
         if (temp->getTanque() == nullptr && (y == filas - 1 || y == filas - 2)) {
-            cout<< "Nodo disponible: (" << temp->getPosX() << ", " << temp->getPosY() << ")" << endl;
+            //cout<< "Nodo disponible: (" << temp->getPosX() << ", " << temp->getPosY() << ")" << endl;
             nodosDisponibles.push_back(temp);
         }
         temp = temp->getSiguiente();
@@ -432,7 +432,7 @@ void seleccionarTanquesIA(
 
         int indiceNodo = rand() % nodosDisponibles.size();
 
-        cout<<"Nodo seleccionado: " << nodosDisponibles[indiceNodo]->getPosX() << ", " << nodosDisponibles[indiceNodo]->getPosY() << endl;
+        //cout<<"Nodo seleccionado: " << nodosDisponibles[indiceNodo]->getPosX() << ", " << nodosDisponibles[indiceNodo]->getPosY() << endl;
         NodoSistema* nodoSeleccionado = nodosDisponibles[indiceNodo];
         nodoSeleccionado->setTanque(nuevoTanque);
         tanquesIA.push(nuevoTanque);
@@ -516,7 +516,7 @@ void desplegarTablero(
             bool esIA = t->getIdTanque() >= 100;
             int mov = t->getMovimientoBase();
 
-            std::cout << "Tanque ID: " << t->getIdTanque() << ", mov: " << mov << std::endl;
+            //std::cout << "Tanque ID: " << t->getIdTanque() << ", mov: " << mov << std::endl;
 
             sf::Texture& tex = esIA ? (mov == 6 ? texturaTanqueLigeroIA : 
                             (mov == 4 ? texturaTanqueMedianoIA : texturaTanquePesadoIA)) 
@@ -529,7 +529,7 @@ void desplegarTablero(
                 spriteTanque.setTexture(tex);
             }
 
-            cout<<"Llega a la condicional de mov"<<endl;
+            //cout<<"Llega a la condicional de mov"<<endl;
             if (mov == 6)
                 spriteTanque.setTexture(esIA ? texturaTanqueLigeroIA : texturaTanqueLigeroJugador);
             else if (mov == 4)
@@ -837,14 +837,14 @@ void menuAccionesJugador(
             info.setFillColor(i == indiceTanque ? sf::Color::Yellow : sf::Color::White);
             window.draw(info);
         }
-        cout<<"Llega aca"<<endl;
+        //cout<<"Llega aca"<<endl;
         desplegarTablero(
             window, font, filas, columnas, cellSize, tablero,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
             texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
         );
-        cout<<"Llega aca x2"<<endl;
+        //cout<<"Llega aca x2"<<endl;
         if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
             previewRect.setPosition(coordX * cellSize + offsetTableroX + 1, coordY * cellSize + offsetTableroY + 1);
             previewRect.setFillColor((accion == "Moverse") ? sf::Color(0, 255, 0, 100) : sf::Color(255, 0, 0, 100));
@@ -867,7 +867,7 @@ void menuAccionesJugador(
         menu.setCharacterSize(20);
         menu.setFillColor(sf::Color::White);
         menu.setPosition(menuX, menuY);
-        cout<<"Llega aca x3"<<endl;
+        //cout<<"Llega aca x3"<<endl;
         if (paso == 0)
             menu.setString("Selecciona un tanque\n(UP/DOWN)\nENTER para confirmar");
         else if (paso == 1)
