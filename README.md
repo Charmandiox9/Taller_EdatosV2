@@ -17,6 +17,7 @@ Este proyecto utiliza la versión dinámica de SFML y está diseñado para compi
 - Compilador: g++
 
 ## 📦 Estructura del proyecto
+```
 .
 ├── Dominio/    # Archivos .h y .cpp (Tanques y NodoSistema)
 ├── Fuentes/    # Fuente utilizada para los textos en pantalla.
@@ -24,6 +25,7 @@ Este proyecto utiliza la versión dinámica de SFML y está diseñado para compi
 ├── Logica/     # Punto de entrada del programa.
 ├── SFML-2.6.1/ # Librería SFML.
 └── README.md
+```
 
 ## 🎮 Modo de juego
 1. El jugador inicia en el menú principal con opciones de **Jugar** o **Salir**.
