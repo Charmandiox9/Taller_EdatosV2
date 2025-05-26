@@ -6,7 +6,7 @@
 class TanqueMediano : public Tanque{
 
 private:
-    int daño;
+    int danio;
     int movimientoBase;
 
 public:
@@ -14,7 +14,7 @@ public:
 
     int obtenerVidaPorTipo() override;
 
-    int getDaño() const;
+    int getDanio() const;
     int getMovimientoBase() const;
 
 };

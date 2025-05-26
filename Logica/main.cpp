@@ -105,7 +105,7 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
 
             if (numeroAleatorio < (probabilidad * 100)) {
                 if (tanqueEnPosicion != nullptr) {
-                    tanqueEnPosicion->actualizarVida(tanque->getDaño());
+                    tanqueEnPosicion->actualizarVida(tanque->getDanio());
                     cout << "Tanque ID: " << tanqueEnPosicion->getIdTanque() << " ha sido alcanzado!" << endl;
                     cout << "Vida restante: " << tanqueEnPosicion->getVida() << endl;
                 } else {
@@ -352,7 +352,7 @@ bool mostrarMenuSeleccionTanquesJugador(
             if (tanqueParaColocar) {
                 sf::Text stats(
                     "Vida: " + std::to_string(tanqueParaColocar->getVida()) +
-                    "  Daño: " + std::to_string(tanqueParaColocar->getDaño()) +
+                    "  Danio: " + std::to_string(tanqueParaColocar->getDanio()) +
                     "  Mov: " + std::to_string(tanqueParaColocar->getMovimientoBase()),
                     font, 18);
                 stats.setFillColor(sf::Color::Cyan);
@@ -826,7 +826,7 @@ void menuAccionesJugador(
         // Texto de información de tanques
         for (size_t i = 0; i < tanquesJugador.size(); ++i) {
             std::string tipo;
-            int dmg = tanquesJugador[i]->getDaño();
+            int dmg = tanquesJugador[i]->getDanio();
             if (dmg == 100) tipo = "Ligero";
             else if (dmg == 150) tipo = "Mediano";
             else if (dmg == 200) tipo = "Pesado";
@@ -999,7 +999,7 @@ int main() {
     const int filas    = 5;
     const int columnas = 5;
 
-    // Ajustar tamaño ventana para info arriba y menú a la derecha
+    // Ajustar tamanio ventana para info arriba y menú a la derecha
     int anchoVentana = columnas * cellSize + 300;  // 300 px para menú derecho y margen
     int altoVentana  = filas * cellSize + 100;     // 100 px para info arriba y margen
 

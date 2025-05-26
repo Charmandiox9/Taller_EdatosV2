@@ -2,7 +2,7 @@
 
 TanqueMediano::TanqueMediano(int id) : Tanque(id){
 
-    daño = 150;
+    danio = 150;
     movimientoBase = 4;
     vida = 250;
 }
@@ -11,8 +11,8 @@ int TanqueMediano::obtenerVidaPorTipo(){
     return 250;
 }
 
-int TanqueMediano::getDaño() const{
-    return daño;
+int TanqueMediano::getDanio() const{
+    return danio;
 }
 
 int TanqueMediano::getMovimientoBase() const{
