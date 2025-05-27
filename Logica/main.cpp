@@ -123,6 +123,11 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
 
 // Función que mueve un tanque a una posición específica
 void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
+    if (tanque == nullptr) {
+        cout << "Error: el tanque es nulo." << endl;
+        return;
+    }
+
     cout << "Tanque ID: " << tanque->getIdTanque() << " intentando moverse a (" << posX << ", " << posY << ")" << endl;
 
     NodoSistema* destino = nullptr;
@@ -131,10 +136,10 @@ void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     NodoSistema* temp = tablero;
     while (temp != nullptr) {
         if (temp->getTanque() == tanque) {
-            origen = temp;  // Nodo donde está el tanque actualmente
+            origen = temp;
         }
         if (temp->getPosX() == posX && temp->getPosY() == posY) {
-            destino = temp; // Nodo destino
+            destino = temp;
         }
         temp = temp->getSiguiente();
     }
@@ -149,13 +154,17 @@ void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
         return;
     }
 
-    if (origen) {
-        origen->setTanque(nullptr);  // Desocupa la posición anterior
+    if (!origen) {
+        cout << "Advertencia: el tanque no estaba posicionado previamente." << endl;
+    } else {
+        origen->setTanque(nullptr);  // No se destruye, solo se desasigna
     }
 
-    destino->setTanque(tanque);  // Mueve el tanque a la nueva posición
+    destino->setTanque(tanque);  // Asignación sin eliminar
+
     cout << "Tanque movido exitosamente a la posición: (" << posX << ", " << posY << ")" << endl;
 }
+
 
 
 bool mostrarMenuSeleccionTanquesJugador(
@@ -187,7 +196,6 @@ bool mostrarMenuSeleccionTanquesJugador(
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
-                // Liberar memoria al cerrar
                 for (auto t : seleccionados) delete t;
                 delete tanqueParaColocar;
                 window.close();
@@ -201,7 +209,6 @@ bool mostrarMenuSeleccionTanquesJugador(
                     seleccion = (seleccion + 1) % opciones.size();
                 } else if (event.key.code == sf::Keyboard::Enter) {
                     if (seleccionados.size() == 3) {
-                        // Confirmar selección: pasar punteros a la pila
                         for (int i = (int)seleccionados.size() - 1; i >= 0; --i)
                             tanquesJugador.push(seleccionados[i]);
                         seleccionados.clear();
@@ -219,7 +226,6 @@ bool mostrarMenuSeleccionTanquesJugador(
                 } else if (event.key.code == sf::Keyboard::Backspace) {
                     if (!seleccionados.empty()) {
                         Tanque* tanqueAEliminar = seleccionados.back();
-
                         if (tanqueAEliminar != nullptr) {
                             NodoSistema* temp = tableroPosiciones;
                             bool encontrado = false;
@@ -235,7 +241,6 @@ bool mostrarMenuSeleccionTanquesJugador(
                             if (encontrado) {
                                 std::cout << "Tanque encontrado en tablero, eliminando referencia (sin delete).\n";
                                 seleccionados.pop_back();
-                                // NO hacemos delete aquí para evitar crash
                             } else {
                                 std::cout << "ERROR: Tanque no encontrado en tablero al intentar eliminar.\n";
                             }
@@ -246,7 +251,6 @@ bool mostrarMenuSeleccionTanquesJugador(
                         std::cout << "ERROR: No hay tanques para eliminar.\n";
                     }
                 } else if (event.key.code == sf::Keyboard::Escape) {
-                    // Cancelar selección: liberar memoria
                     for (auto t : seleccionados) delete t;
                     seleccionados.clear();
                     delete tanqueParaColocar;
@@ -264,14 +268,17 @@ bool mostrarMenuSeleccionTanquesJugador(
                     }
                 } else if (event.type == sf::Event::KeyPressed) {
                     if (event.key.code == sf::Keyboard::Backspace) {
-                        if (escribiendoY && !inputX.empty()) {
-                            inputX.pop_back();
-                        } else if (escribiendoY && inputX.empty()) {
-                            escribiendoY = false;
+                        if (escribiendoY) {
                             if (!inputY.empty()) inputY.pop_back();
-                        } else if (!escribiendoY && !inputY.empty()) {
-                            inputY.pop_back();
+                        } else {
+                            if (!inputX.empty()) inputX.pop_back();
                         }
+                    } else if (event.key.code == sf::Keyboard::Left) {
+                        escribiendoY = false;
+                    } else if (event.key.code == sf::Keyboard::Right) {
+                        escribiendoY = true;
+                    } else if (event.key.code == sf::Keyboard::Space) {
+                        escribiendoY = !escribiendoY;
                     } else if (event.key.code == sf::Keyboard::Escape) {
                         delete tanqueParaColocar;
                         tanqueParaColocar = nullptr;
@@ -308,7 +315,6 @@ bool mostrarMenuSeleccionTanquesJugador(
         // --- Dibujo ---
         window.clear(sf::Color::Black);
 
-
         sf::Text titulo("Selecciona tus tanques", font, 32);
         titulo.setFillColor(sf::Color(110, 180, 100));
         titulo.setPosition(100, 50);
@@ -327,10 +333,9 @@ bool mostrarMenuSeleccionTanquesJugador(
                 if (i == seleccion) {
                     sf::FloatRect bounds = txt.getLocalBounds();
                     sf::RectangleShape highlight(sf::Vector2f(bounds.width + 20, bounds.height + 18));
-                    highlight.setFillColor(sf::Color(110, 180, 100));  // Verde militar
+                    highlight.setFillColor(sf::Color(110, 180, 100));
                     highlight.setPosition(txt.getPosition().x - 10, txt.getPosition().y - 8);
                     window.draw(highlight);
-
                     txt.setFillColor(sf::Color::Black);
                 } else {
                     txt.setFillColor(sf::Color::White);
@@ -344,7 +349,11 @@ bool mostrarMenuSeleccionTanquesJugador(
             info.setPosition(100, 140);
             window.draw(info);
 
-            sf::Text entrada("X: " + inputX + " Y: " + inputY, font, 20);
+            std::string coordenadas = "X: " + inputX + " Y: " + inputY;
+            if (escribiendoY) coordenadas += "  <--- editando Y";
+            else coordenadas += "  <--- editando X";
+
+            sf::Text entrada(coordenadas, font, 20);
             entrada.setFillColor(sf::Color::White);
             entrada.setPosition(100, 170);
             window.draw(entrada);
@@ -361,7 +370,6 @@ bool mostrarMenuSeleccionTanquesJugador(
             }
         }
 
-        // Cantidad de tanques seleccionados
         sf::Text count("Tanques elegidos: " + std::to_string(seleccionados.size()), font, 20);
         count.setFillColor(sf::Color::White);
         count.setPosition(100, 300);
@@ -387,7 +395,6 @@ bool mostrarMenuSeleccionTanquesJugador(
 
     return false;
 }
-
 
 
 // Función que selecciona tanques para la IA
@@ -510,7 +517,7 @@ void desplegarTablero(
         
 
         // Tanques
-        if (actual->getTanque() != nullptr) {
+        if (actual->getTanque() != nullptr && actual->getTanque()->getVida()>0) {
             sf::Sprite spriteTanque;
             Tanque* t = actual->getTanque();
             bool esIA = t->getIdTanque() >= 100;
