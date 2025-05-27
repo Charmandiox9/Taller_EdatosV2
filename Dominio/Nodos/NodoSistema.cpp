@@ -39,7 +39,7 @@ NodoSistema* NodoSistema::getAnterior() const {
 }
 
 void NodoSistema::setTanque(Tanque* nuevoTanque) {
-    // NO liberamos memoria aquí. Asumimos que el control de vida del tanque está fuera del nodo.
+    
     tanque = nuevoTanque;
 }
 
