@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <iostream>
 #include <stack>
 #include <vector>
@@ -11,6 +12,17 @@
 #include "../Dominio/Tanques/TanquePesado.h"
 #include "../Dominio/Nodos/NodoSistema.h"
 using namespace std;
+
+enum TipoExplosion { NINGUNA, TERRENO, TANQUE };
+
+struct Explosion {
+    int x, y;
+    float tiempoRestante;
+    TipoExplosion tipo; // <-- Agrega esto
+};
+std::vector<Explosion> explosiones; // Explosiones activas
+
+TipoExplosion ultimaExplosion = NINGUNA;
 
 void recorrerTablero(NodoSistema* head) {
     NodoSistema* temp = head;
@@ -108,11 +120,18 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
                     tanqueEnPosicion->actualizarVida(tanque->getDanio());
                     cout << "Tanque ID: " << tanqueEnPosicion->getIdTanque() << " ha sido alcanzado!" << endl;
                     cout << "Vida restante: " << tanqueEnPosicion->getVida() << endl;
+                    // ...dentro de disparar, cuando el disparo acierta...
+                    explosiones.push_back({posX, posY, 5.0f, TANQUE});
+                    std::cout << "Explosión agregada en (" << posX << ", " << posY << ")" << std::endl;
+                    ultimaExplosion = TANQUE;
                 } else {
                     cout << "¡Fallaste! No hay tanque en la posicion (" << posX << ", " << posY << ")." << endl;
+                    explosiones.push_back({posX, posY, 5.0f, TERRENO});
+                    ultimaExplosion = TERRENO;
                 }
             } else {
                 cout << "¡Fallaste! El disparo no tuvo exito." << endl;
+                ultimaExplosion = NINGUNA;
             }
             break;
         }
@@ -463,8 +482,21 @@ void desplegarTablero(
     sf::Texture& texturaTanquePesadoJugador,
     sf::Texture& texturaTanqueLigeroIA,
     sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA
+    sf::Texture& texturaTanquePesadoIA,
+    sf::Texture& texturaExplosionTerreno,
+    sf::Texture& texturaExplosionTanque
 ) {
+
+    // Calcula el tiempo real entre frames si puedes, aquí fijo a 1/60s (~60 FPS)
+    float deltaTime = 1.0f / 60.0f;
+    for (auto& ex : explosiones) {
+        ex.tiempoRestante -= deltaTime;
+    }
+    explosiones.erase(
+        std::remove_if(explosiones.begin(), explosiones.end(),
+                    [](const Explosion& e){ return e.tiempoRestante <= 0; }),
+        explosiones.end()
+    );
     const int offsetTableroX = 50;
     const int offsetTableroY = 90;
 
@@ -574,6 +606,30 @@ void desplegarTablero(
 
         actual = actual->getSiguiente();
     }
+
+    // Ahora dibuja todas las explosiones activas
+    /*for (const Explosion& ex : explosiones) {
+        sf::Sprite spriteExplosion;
+        const sf::Texture* tex = nullptr;
+        if (ex.tipo == TANQUE) {
+            spriteExplosion.setTexture(texturaExplosionTanque);
+            tex = &texturaExplosionTanque;
+        } else {
+            spriteExplosion.setTexture(texturaExplosionTerreno);
+            tex = &texturaExplosionTerreno;
+        }
+        spriteExplosion.setPosition(
+            ex.x * cellSize + offsetTableroX,
+            ex.y * cellSize + offsetTableroY
+        );
+        // Ajusta el scale según la textura correcta
+        spriteExplosion.setScale(
+            3.5f * (float)cellSize / tex->getSize().x,
+            3.5f * (float)cellSize / tex->getSize().y
+        );
+        window.draw(spriteExplosion);
+    }*/
+
 }
 
 
@@ -712,7 +768,9 @@ void menuAccionesJugador(
     sf::Texture& texturaTanquePesadoJugador,
     sf::Texture& texturaTanqueLigeroIA,
     sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA
+    sf::Texture& texturaTanquePesadoIA,
+    sf::Texture& texturaExplosionTerreno,
+    sf::Texture& texturaExplosionTanque
 ) {
     std::vector<Tanque*> tanquesJugador;
     std::stack<Tanque*> copia = tanquesJugadorStack;
@@ -849,7 +907,7 @@ void menuAccionesJugador(
             window, font, filas, columnas, cellSize, tablero,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
         );
         //cout<<"Llega aca x2"<<endl;
         if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
@@ -889,6 +947,35 @@ void menuAccionesJugador(
         }
 
         window.draw(menu);
+
+        // --- Agrega este bloque justo aquí ---
+        sf::Sprite spritePreviewExplosion;
+        std::string textoExplosion;
+        if (ultimaExplosion == TERRENO) {
+            spritePreviewExplosion.setTexture(texturaExplosionTerreno);
+            textoExplosion = "¡Disparo acerto al terreno!";
+        } else if (ultimaExplosion == TANQUE) {
+            spritePreviewExplosion.setTexture(texturaExplosionTanque);
+            textoExplosion = "¡Disparo acerto a un tanque!";
+        }
+        if (ultimaExplosion != NINGUNA) {
+            float explosionX = 475; // Más a la izquierda
+            float explosionY = menuY + menuHeight + 50;
+            spritePreviewExplosion.setScale(1.5f, 1.5f);
+            spritePreviewExplosion.setPosition(explosionX, explosionY);
+
+            // Texto arriba de la explosión
+            sf::Text texto;
+            texto.setFont(font);
+            texto.setString(textoExplosion);
+            texto.setCharacterSize(20);
+            texto.setFillColor(sf::Color::White);
+            texto.setPosition(explosionX + 100, explosionY + 80);
+            window.draw(texto);
+
+            window.draw(spritePreviewExplosion);
+        }
+        // --- Fin del bloque ---
         window.display();
     }
 }
@@ -908,14 +995,16 @@ void actualizarYMostrarTablero(
     sf::Texture& texturaTanquePesadoJugador,
     sf::Texture& texturaTanqueLigeroIA,
     sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA
+    sf::Texture& texturaTanquePesadoIA,
+    sf::Texture& texturaExplosionTerreno,
+    sf::Texture& texturaExplosionTanque
 ) {
     window.clear();
     desplegarTablero(
         window, font, filas, columnas, cellSize, tablero,
         texturaTerreno1, texturaTerreno2, texturaTerreno3,
         texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-        texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
+        texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
     );
     window.display();
     sf::sleep(sf::seconds(0.5));
@@ -939,7 +1028,9 @@ void bucleDeCombate(
     sf::Texture& texturaTanquePesadoJugador,
     sf::Texture& texturaTanqueLigeroIA,
     sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA
+    sf::Texture& texturaTanquePesadoIA,
+    sf::Texture& texturaExplosionTerreno,
+    sf::Texture& texturaExplosionTanque
 ) {
     while (window.isOpen()) {
         // Verificar si todos los tanques de un bando fueron destruidos
@@ -975,7 +1066,7 @@ void bucleDeCombate(
             window, font, tanquesJugador, tablero, filas, columnas, cellSize,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
         );
 
         // Redibujar el tablero después del turno del jugador
@@ -984,7 +1075,7 @@ void bucleDeCombate(
             window, font, filas, columnas, cellSize, tablero,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
         );
         window.display();
 
@@ -1023,9 +1114,18 @@ int main() {
     }
 
     while (window.isOpen()) {
+
+
         int opcion = mostrarMenuPrincipal(window, font);
 
         if (opcion == 0) {  // Jugar
+            sf::Music musicaFondo;
+            if (!musicaFondo.openFromFile("Sonidos/musica_fondo.ogg")) {
+                std::cout << "No se pudo cargar la música de fondo." << std::endl;
+            } else {
+                musicaFondo.setLoop(true); // Para que la música se repita
+                musicaFondo.play();
+            }
             int dificultad = mostrarMenuDificultad(window, font);
             if (dificultad == -1) {
                 continue;  // Se cerró la ventana
@@ -1037,7 +1137,8 @@ int main() {
             // Cargar texturas
             sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3;
             sf::Texture texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador;
-            sf::Texture texturaTanque1IA, texturaTanque2IA, texturaTanque3IA;
+            sf::Texture texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, 
+                        texturaExplosionTerreno, texturaExplosionTanque;
             if (!texturaTerreno1.loadFromFile("Imagenes/Terreno/planicie.png") ||
                 !texturaTerreno2.loadFromFile("Imagenes/Terreno/bosque.png") ||
                 !texturaTerreno3.loadFromFile("Imagenes/Terreno/montaniaNevada.png") ||
@@ -1046,7 +1147,9 @@ int main() {
                 !texturaTanque3Jugador.loadFromFile("Imagenes/Tanques/pesadoA-removebg-preview.png") ||
                 !texturaTanque1IA.loadFromFile("Imagenes/Tanques/ligeroR-removebg-preview.png") ||
                 !texturaTanque2IA.loadFromFile("Imagenes/Tanques/medianoR-removebg-preview.png") ||
-                !texturaTanque3IA.loadFromFile("Imagenes/Tanques/pesadoR-removebg-preview.png")) {
+                !texturaTanque3IA.loadFromFile("Imagenes/Tanques/pesadoR-removebg-preview.png") ||
+                !texturaExplosionTerreno.loadFromFile("Imagenes/Extras/explosion_terreno.png") ||
+                !texturaExplosionTanque.loadFromFile("Imagenes/Extras/explosion_tanque.png")) {
                 std::cout << "Error cargando texturas." << std::endl;
                 return -1;
             }
@@ -1071,7 +1174,7 @@ int main() {
             filas, columnas, cellSize,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
-            texturaTanque1IA, texturaTanque2IA, texturaTanque3IA
+            texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, texturaExplosionTerreno, texturaExplosionTanque
             );
 
             // Liberar memoria de tanques
