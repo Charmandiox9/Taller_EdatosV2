@@ -280,8 +280,14 @@ bool mostrarMenuSeleccionTanquesJugador(
                 if (event.type == sf::Event::TextEntered) {
                     char c = static_cast<char>(event.text.unicode);
                     if (isdigit(c)) {
-                        if (!escribiendoY) inputX += c;
-                        else inputY += c;
+                        int valor = c - '0';
+                        if (valor >= 0 && valor <= 4) {
+                            if (!escribiendoY && inputX.empty()) {
+                                inputX += c;
+                            } else if (escribiendoY && inputY.empty()) {
+                                inputY += c;
+                            }
+                        }
                     } else if (c == ' ' && !inputX.empty() && !escribiendoY) {
                         escribiendoY = true;
                     }
@@ -634,7 +640,7 @@ void desplegarTablero(
 
 
 int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
-    std::vector<std::string> opciones = {"Fácil", "Media", "Difícil"};
+    std::vector<std::string> opciones = {"Facil", "Media", "Dificil"};
     int seleccion = 0;
 
     while (window.isOpen()) {
@@ -648,7 +654,7 @@ int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
                 } else if (event.key.code == sf::Keyboard::Down) {
                     seleccion = (seleccion + 1) % opciones.size();
                 } else if (event.key.code == sf::Keyboard::Enter) {
-                    return seleccion;  // 0 = Fácil, 1 = Media, 2 = Difícil
+                    return seleccion;  // 0 = Facil, 1 = Media, 2 = Dificil
                 }
             }
         }
@@ -837,38 +843,34 @@ void menuAccionesJugador(
                     else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9)
                         digit = event.key.code - sf::Keyboard::Numpad0;
 
-                    if (digit != -1) {
-                        if (coordenadaY && coordY < 100)
-                            coordY = coordY * 10 + digit;
-                        else if (!coordenadaY && coordX < 100)
-                            coordX = coordX * 10 + digit;
+                    if (digit != -1 && digit >= 0 && digit < 5) { // Solo del 0 al 4
+                        if (!coordenadaY && coordX == 0) coordX = digit;
+                        else if (coordenadaY && coordY == 0) coordY = digit;
                     }
 
                     if (event.key.code == sf::Keyboard::Space || event.key.code == sf::Keyboard::Right)
                         coordenadaY = !coordenadaY;
 
                     if (event.key.code == sf::Keyboard::Left)
-                        coordenadaY = true;
+                        coordenadaY = !coordenadaY;
 
                     if (event.key.code == sf::Keyboard::BackSpace) {
                         if (coordenadaY)
-                            coordY /= 10;
+                            coordY = 0;
                         else
-                            coordX /= 10;
+                            coordX = 0;
                     }
 
                     if (event.key.code == sf::Keyboard::Enter) {
                         if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
                             Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
-                            if (accion == "Moverse"){
+                            if (accion == "Moverse") {
                                 moverse(tanqueSeleccionado, tablero, coordX, coordY);
                                 std::cout << "Movimiento completado. X=" << coordX << ", Y=" << coordY << std::endl;
-                            }else {
+                            } else {
                                 disparar(tanqueSeleccionado, tablero, coordX, coordY);
-                            }  
+                            }
                             turnoCompletado = true;
-                            // DEBUG EXTRA
-                            std::cout << "¿Se sigue ejecutando después de moverse?" << std::endl;
                         } else {
                             errorCoordenadas = true;
                         }
@@ -917,7 +919,7 @@ void menuAccionesJugador(
         }
 
         const int menuWidth = 230;
-        const int menuHeight = 150;
+        const int menuHeight = 160;
         const int menuPadding = 10;
 
         sf::RectangleShape menuBackground(sf::Vector2f(menuWidth, menuHeight));
@@ -936,10 +938,11 @@ void menuAccionesJugador(
         if (paso == 0)
             menu.setString("Selecciona un tanque\n(UP/DOWN)\nENTER para confirmar");
         else if (paso == 1)
-            menu.setString("Acción: " + accion + "\n(UP/DOWN para cambiar)\nENTER para confirmar");
+            menu.setString("Accion: " + accion + "\n(UP/DOWN para cambiar)\nENTER para confirmar");
         else if (paso == 2) {
             std::string mensaje = "Ingresa coordenadas:\n";
             mensaje += "X: " + std::to_string(coordX) + "  Y: " + std::to_string(coordY);
+            mensaje += "\nEditando: " + std::string(coordenadaY ? "Y" : "X");
             mensaje += "\nSPACE para cambiar entre X/Y\nENTER para ejecutar\nBACKSPACE para borrar";
             if (errorCoordenadas)
                 mensaje += "\n[Coordenadas inválidas]";
@@ -953,10 +956,10 @@ void menuAccionesJugador(
         std::string textoExplosion;
         if (ultimaExplosion == TERRENO) {
             spritePreviewExplosion.setTexture(texturaExplosionTerreno);
-            textoExplosion = "¡Disparo acerto al terreno!";
+            textoExplosion = "Disparo acerto al terreno";
         } else if (ultimaExplosion == TANQUE) {
             spritePreviewExplosion.setTexture(texturaExplosionTanque);
-            textoExplosion = "¡Disparo acerto a un tanque!";
+            textoExplosion = "Disparo acerto a un tanque";
         }
         if (ultimaExplosion != NINGUNA) {
             float explosionX = 475; // Más a la izquierda
@@ -980,35 +983,57 @@ void menuAccionesJugador(
     }
 }
 
-void actualizarYMostrarTablero(
-    sf::RenderWindow& window,
-    sf::Font& font,
-    NodoSistema* tablero,
-    int filas,
-    int columnas,
-    int cellSize,
-    sf::Texture& texturaTerreno1,
-    sf::Texture& texturaTerreno2,
-    sf::Texture& texturaTerreno3,
-    sf::Texture& texturaTanqueLigeroJugador,
-    sf::Texture& texturaTanqueMedianoJugador,
-    sf::Texture& texturaTanquePesadoJugador,
-    sf::Texture& texturaTanqueLigeroIA,
-    sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA,
-    sf::Texture& texturaExplosionTerreno,
-    sf::Texture& texturaExplosionTanque
-) {
-    window.clear();
-    desplegarTablero(
-        window, font, filas, columnas, cellSize, tablero,
-        texturaTerreno1, texturaTerreno2, texturaTerreno3,
-        texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-        texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
-    );
-    window.display();
-    sf::sleep(sf::seconds(0.5));
+
+
+bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::string& mensaje) {
+    sf::Text texto;
+    texto.setFont(font);
+    texto.setString(mensaje);
+    texto.setCharacterSize(50);
+    texto.setStyle(sf::Text::Bold);
+
+    // Color según mensaje
+    if (mensaje == "Has ganado") {
+        texto.setFillColor(sf::Color::Green);
+    } else if (mensaje == "Has perdido") {
+        texto.setFillColor(sf::Color::Red);
+    } else {
+        texto.setFillColor(sf::Color::White);
+    }
+
+    // Centrado
+    sf::FloatRect bounds = texto.getLocalBounds();
+    texto.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+    texto.setPosition(window.getSize().x / 2.f, window.getSize().y / 2.f - 30);
+
+    // Mensaje secundario
+    sf::Text info;
+    info.setFont(font);
+    info.setString("Presiona ESC para volver al menu principal");
+    info.setCharacterSize(24);
+    info.setFillColor(sf::Color::White);
+    sf::FloatRect infoBounds = info.getLocalBounds();
+    info.setOrigin(infoBounds.left + infoBounds.width / 2.f, infoBounds.top + infoBounds.height / 2.f);
+    info.setPosition(window.getSize().x / 2.f, window.getSize().y / 2.f + 30);
+
+    while (window.isOpen()) {
+        window.clear(sf::Color::Black);
+        window.draw(texto);
+        window.draw(info);
+        window.display();
+
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close();
+            } else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape) {
+                return true;  // Volver al menú
+            }
+        }
+    }
+    return false;
 }
+
 
 
 void bucleDeCombate(
@@ -1055,10 +1080,11 @@ void bucleDeCombate(
         }
 
         if (jugadorSinTanques || iaSinTanques) {
-            std::string mensajeFinal = jugadorSinTanques ? "¡Has perdido!" : "¡Has ganado!";
-            std::cout << mensajeFinal << std::endl;
-            // Aquí podrías dibujar un mensaje en pantalla en lugar de solo consola
-            return;
+            std::string mensajeFinal = jugadorSinTanques ? "Has perdido" : "Has ganado";
+            bool volverAlMenu = mostrarMensajeFinal(window, font, mensajeFinal);
+            if (volverAlMenu) {
+                return; // Salimos del bucle para volver al menú principal
+            }
         }
 
         // Turno del jugador
