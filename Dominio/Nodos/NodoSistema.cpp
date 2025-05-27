@@ -1,5 +1,4 @@
 #include "NodoSistema.h"
-#include "../Tanques/Tanque.h"
 #include <iostream>
 
 NodoSistema::NodoSistema(int id, int x, int y, int tipoTerreno)
@@ -40,9 +39,7 @@ NodoSistema* NodoSistema::getAnterior() const {
 }
 
 void NodoSistema::setTanque(Tanque* nuevoTanque) {
-    if (tanque != nullptr) {
-        delete tanque; // Liberar memoria del tanque anterior
-    }
+    // NO liberamos memoria aquí. Asumimos que el control de vida del tanque está fuera del nodo.
     tanque = nuevoTanque;
 }
 
@@ -66,7 +63,6 @@ void NodoSistema::setAnterior(NodoSistema* anteriorNodo) {
     anterior = anteriorNodo;
 }
 
-// Destructor para liberar la memoria del tanque
 void NodoSistema::destruirTanque() {
     if (tanque != nullptr) {
         delete tanque;
