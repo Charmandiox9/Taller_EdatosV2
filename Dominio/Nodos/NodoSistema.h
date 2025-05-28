@@ -10,7 +10,7 @@ private:
     int posicionY;
     int tipoTerreno; // 1: planicie, 2: bosque, 3: montaña, 0: agua
 
-    Tanque* tanque; // Puntero al tanque ubicado en este nodo (puede ser nullptr)
+    Tanque* tanque;
     NodoSistema* siguiente;
     NodoSistema* anterior;
 
@@ -34,8 +34,8 @@ public:
     void setSiguiente(NodoSistema* siguienteNodo);
     void setAnterior(NodoSistema* anteriorNodo);
 
-    // Gestión de memoria
-    void destruirTanque(); // Elimina el tanque asociado solo si fue creado dentro del nodo
+    
+    void destruirTanque();
 };
 
 #endif

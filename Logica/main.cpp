@@ -18,9 +18,9 @@ enum TipoExplosion { NINGUNA, TERRENO, TANQUE };
 struct Explosion {
     int x, y;
     float tiempoRestante;
-    TipoExplosion tipo; // <-- Agrega esto
+    TipoExplosion tipo;
 };
-std::vector<Explosion> explosiones; // Explosiones activas
+std::vector<Explosion> explosiones; //explosiones activas
 
 TipoExplosion ultimaExplosion = NINGUNA;
 
@@ -176,10 +176,10 @@ void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     if (!origen) {
         cout << "Advertencia: el tanque no estaba posicionado previamente." << endl;
     } else {
-        origen->setTanque(nullptr);  // No se destruye, solo se desasigna
+        origen->setTanque(nullptr);
     }
 
-    destino->setTanque(tanque);  // Asignación sin eliminar
+    destino->setTanque(tanque);
 
     cout << "Tanque movido exitosamente a la posición: (" << posX << ", " << posY << ")" << endl;
 }
@@ -430,7 +430,7 @@ void seleccionarTanquesIA(
     std::vector<std::string> tiposTanque = {"Ligero", "Mediano", "Pesado"};
     int idTanque = 100;
 
-    // Parámetro de filas (ajústalo según tu tablero real)
+    
     const int columnas = 5;
     const int filas = 5;
 
@@ -524,7 +524,7 @@ void desplegarTablero(
         text.setFillColor(sf::Color::White);
         sf::FloatRect bounds = text.getLocalBounds();
 
-        float posX = offsetTableroX - 25;  // a la izquierda del tablero
+        float posX = offsetTableroX - 25;
         float posY = row * cellSize + offsetTableroY + (cellSize - bounds.height) / 2.0f - bounds.top;
         text.setPosition(posX, posY);
         window.draw(text);
@@ -647,7 +647,7 @@ int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
-                return -1;  // Se cerró la ventana
+                return -1;
             } else if (event.type == sf::Event::KeyPressed) {
                 if (event.key.code == sf::Keyboard::Up) {
                     seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
@@ -697,6 +697,7 @@ int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
     return -1;
 }
 
+// Función para desplegar el menu principal
 int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {"Jugar", "Salir"};
     int seleccion = 0;
@@ -705,7 +706,7 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
-                return 1;  // Se cerró la ventana
+                return 1;
             } else if (event.type == sf::Event::KeyPressed) {
                 if (event.key.code == sf::Keyboard::Up) {
                     seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
@@ -721,7 +722,7 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
 
         // Título centrado
         sf::Text titulo("FERRUM BELLUM", font, 54);
-        titulo.setFillColor(sf::Color(110, 180, 100));  // Verde militar
+        titulo.setFillColor(sf::Color(110, 180, 100));
         titulo.setStyle(sf::Text::Bold);
         sf::FloatRect boundsTitulo = titulo.getLocalBounds();
         titulo.setOrigin(boundsTitulo.width / 2, boundsTitulo.height / 2);
@@ -737,7 +738,7 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
             texto.setPosition(window.getSize().x / 2, 220 + i * 70);
 
             if (i == seleccion) {
-                // Rectángulo de fondo con color verde militar
+                
                 sf::RectangleShape highlight(sf::Vector2f(bounds.width + 20, bounds.height + 20));
                 highlight.setFillColor(sf::Color(110, 180, 100));
                 highlight.setOrigin(highlight.getSize().x / 2, highlight.getSize().y / 2);
@@ -843,7 +844,7 @@ void menuAccionesJugador(
                     else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9)
                         digit = event.key.code - sf::Keyboard::Numpad0;
 
-                    if (digit != -1 && digit >= 0 && digit < 5) { // Solo del 0 al 4
+                    if (digit != -1 && digit >= 0 && digit < 5) { 
                         if (!coordenadaY && coordX == 0) coordX = digit;
                         else if (coordenadaY && coordY == 0) coordY = digit;
                     }
@@ -951,7 +952,7 @@ void menuAccionesJugador(
 
         window.draw(menu);
 
-        // --- Agrega este bloque justo aquí ---
+        
         sf::Sprite spritePreviewExplosion;
         std::string textoExplosion;
         if (ultimaExplosion == TERRENO) {
@@ -962,7 +963,7 @@ void menuAccionesJugador(
             textoExplosion = "Disparo acerto a un tanque";
         }
         if (ultimaExplosion != NINGUNA) {
-            float explosionX = 475; // Más a la izquierda
+            float explosionX = 475; 
             float explosionY = menuY + menuHeight + 50;
             spritePreviewExplosion.setScale(1.5f, 1.5f);
             spritePreviewExplosion.setPosition(explosionX, explosionY);
@@ -978,7 +979,7 @@ void menuAccionesJugador(
 
             window.draw(spritePreviewExplosion);
         }
-        // --- Fin del bloque ---
+        
         window.display();
     }
 }
@@ -992,7 +993,7 @@ bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::st
     texto.setCharacterSize(50);
     texto.setStyle(sf::Text::Bold);
 
-    // Color según mensaje
+    
     if (mensaje == "Has ganado") {
         texto.setFillColor(sf::Color::Green);
     } else if (mensaje == "Has perdido") {
@@ -1001,12 +1002,12 @@ bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::st
         texto.setFillColor(sf::Color::White);
     }
 
-    // Centrado
+    
     sf::FloatRect bounds = texto.getLocalBounds();
     texto.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
     texto.setPosition(window.getSize().x / 2.f, window.getSize().y / 2.f - 30);
 
-    // Mensaje secundario
+    
     sf::Text info;
     info.setFont(font);
     info.setString("Presiona ESC para volver al menu principal");
@@ -1027,7 +1028,7 @@ bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::st
             if (event.type == sf::Event::Closed) {
                 window.close();
             } else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape) {
-                return true;  // Volver al menú
+                return true;  
             }
         }
     }
@@ -1083,7 +1084,7 @@ void bucleDeCombate(
             std::string mensajeFinal = jugadorSinTanques ? "Has perdido" : "Has ganado";
             bool volverAlMenu = mostrarMensajeFinal(window, font, mensajeFinal);
             if (volverAlMenu) {
-                return; // Salimos del bucle para volver al menú principal
+                return; 
             }
         }
 
@@ -1105,11 +1106,11 @@ void bucleDeCombate(
         );
         window.display();
 
-        // Turno de la IA (si tienes una función de IA)
-        // menuAccionesIA(...); // Aquí llamas a la IA si la tienes implementada
+        // Turno de la IA
+        // menuAccionesIA(...);
 
 
-        // Si usas lógica de IA, también redibuja después:
+        
         // window.clear();
         // desplegarTablero(...);
         // window.display();
@@ -1123,9 +1124,9 @@ int main() {
     const int filas    = 5;
     const int columnas = 5;
 
-    // Ajustar tamanio ventana para info arriba y menú a la derecha
-    int anchoVentana = columnas * cellSize + 300;  // 300 px para menú derecho y margen
-    int altoVentana  = filas * cellSize + 100;     // 100 px para info arriba y margen
+    
+    int anchoVentana = columnas * cellSize + 300;  
+    int altoVentana  = filas * cellSize + 100;     
 
     sf::RenderWindow window(
         sf::VideoMode(anchoVentana, altoVentana),
@@ -1144,17 +1145,17 @@ int main() {
 
         int opcion = mostrarMenuPrincipal(window, font);
 
-        if (opcion == 0) {  // Jugar
+        if (opcion == 0) {  
             sf::Music musicaFondo;
             if (!musicaFondo.openFromFile("Sonidos/musica_fondo.ogg")) {
                 std::cout << "No se pudo cargar la música de fondo." << std::endl;
             } else {
-                musicaFondo.setLoop(true); // Para que la música se repita
+                musicaFondo.setLoop(true); 
                 musicaFondo.play();
             }
             int dificultad = mostrarMenuDificultad(window, font);
             if (dificultad == -1) {
-                continue;  // Se cerró la ventana
+                continue;  
             }
             // Pilas de tanques
             std::stack<Tanque*> tanquesJugador;
@@ -1191,7 +1192,7 @@ int main() {
                 continue;
             }
 
-            // Seleccionar IA y luego desplegar
+            // Seleccionar tanques para IA y luego desplegar
             seleccionarTanquesIA(tanquesIA, tableroPosiciones);
 
             bucleDeCombate(
@@ -1213,7 +1214,7 @@ int main() {
                 tanquesIA.pop();
             }
         }
-        else if (opcion == 1) {  // Salir
+        else if (opcion == 1) {  
             window.close();
         }
     }
