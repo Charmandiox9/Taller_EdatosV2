@@ -60,6 +60,40 @@ Este proyecto utiliza la versión dinámica de SFML y está diseñado para compi
 - Luego, ejecuta:
   ./app.exe
 
+---
+## Documentación de código
+
+main.cpp
+El archivo principal del juego que maneja la lógica con la que el usuario interactúa, componiéndose de la GUI, detección de eventos y la ejecución del juego en su totalidad.
+
+Atributos
+```bash
+  explosiones: Contenedor de todas las explosiones activas en el tablero.
+  ultimaExplosion: Almacena el tipo de la última explosión registrada.
+```
+
+Funciones
+Main
+```bash
+  main(): Inicializa la ventana de juego, carga recursos (fuentes, música, texturas),
+        muestra los menús de inicio y dificultad, permite la selección de tanques 
+        del jugador y la IA, y ejecuta el bucle principal de combate.
+        
+        Al finalizar, libera la memoria de los tanques utilizados.
+```
+
+Funciones de generación de lista
+```bash
+  agregarPosicion(NodoSistema*, NodoSistema*): 
+        
+        del jugador y la IA, y ejecuta el bucle principal de combate.
+        
+        Al finalizar, libera la memoria de los tanques utilizados.
+```
+
+
+
+
 ## Autores
 
 - [Daniel Durán](https://github.com/Charmandiox9) | 21.493.398-5 | ITI
