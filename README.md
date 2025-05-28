@@ -62,8 +62,8 @@ Este proyecto utiliza la versión dinámica de SFML y está diseñado para compi
 
 ## Autores
 
-- [Daniel Durán](https://github.com/Charmandiox9)
-- [Martín Castillo](https://github.com/Marton1123)
+- [Daniel Durán](https://github.com/Charmandiox9) | 21.493.398-5 | ITI
+- [Martín Castillo](https://github.com/Marton1123) | 21.484.992-5 | ITI
 
 > [!IMPORTANT]
 > Este proyecto está en desarrollo, por lo que puede tener bugs...
