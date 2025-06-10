@@ -17,3 +17,8 @@ int TanquePesado::getDanio() const {
 int TanquePesado::getMovimientoBase() const {
     return movimientoBase;
 }
+
+Tanque* TanquePesado::clonar() const {
+    return new TanquePesado(*this);
+}
+

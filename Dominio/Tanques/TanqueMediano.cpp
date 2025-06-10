@@ -18,3 +18,7 @@ int TanqueMediano::getDanio() const{
 int TanqueMediano::getMovimientoBase() const{
     return movimientoBase;
 }
+
+Tanque* TanqueMediano::clonar() const {
+    return new TanqueMediano(*this);
+}

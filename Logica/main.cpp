@@ -5,6 +5,8 @@
 #include <vector>
 #include <cstdlib> // Para rand() y srand()
 #include <ctime>   // Para time()
+#include <limits>
+#include <cmath>
 
 #include "../Dominio/Tanques/Tanque.h"
 #include "../Dominio/Tanques/TanqueLigero.h"
@@ -20,9 +22,478 @@ struct Explosion {
     float tiempoRestante;
     TipoExplosion tipo;
 };
+
 std::vector<Explosion> explosiones; //explosiones activas
 
 TipoExplosion ultimaExplosion = NINGUNA;
+
+const int INF = numeric_limits<int>::max();
+
+enum Accion { MOVER, DISPARAR, ESPERAR };
+// Representa el estado del juego
+struct EstadoJuego {
+    NodoSistema* tableroClonado; // Copia del tablero original
+    Tanque* tanqueIA;
+    Tanque* tanqueJugador;
+    bool turnoIA;
+    Accion accionAplicada;
+    int posAccionX, posAccionY;
+
+    EstadoJuego(NodoSistema* clon, Tanque* ia, Tanque* jugador, bool turno)
+        : tableroClonado(clon), tanqueIA(ia), tanqueJugador(jugador), turnoIA(turno), 
+        accionAplicada(ESPERAR), posAccionX(-1), posAccionY(-1) {}
+
+    ~EstadoJuego() {
+        // Liberar tablero clonado
+        while (tableroClonado) {
+            NodoSistema* temp = tableroClonado;
+            tableroClonado = tableroClonado->getSiguiente();
+            delete temp;
+        }
+        // Liberar tanques clonados
+        delete tanqueIA;
+        delete tanqueJugador;
+    }
+};
+
+
+NodoSistema* clonarTablero(NodoSistema* original) {
+    if (!original) return nullptr;
+
+    NodoSistema* nuevoTablero = nullptr;
+    NodoSistema* ultimo = nullptr;
+
+    NodoSistema* actual = original;
+    int id = 100;
+    while (actual) {
+        NodoSistema* nuevo = new NodoSistema(id++, actual->getPosX(), actual->getPosY(), actual->getTipoTerreno());
+        /*nuevo->setPosX(actual->getPosX());
+        nuevo->setPosY(actual->getPosY());
+        nuevo->setTipoTerreno(actual->getTipoTerreno());*/
+
+        // Clonamos el tanque si existe
+        if (actual->getTanque()) {
+            Tanque* originalTanque = actual->getTanque();
+            Tanque* nuevoTanque = originalTanque->clonar(); // Supone constructor por copia
+            nuevo->setTanque(nuevoTanque);
+        } else {
+            nuevo->setTanque(nullptr);
+        }
+
+        // Enlazar nodo a la lista nueva
+        if (!nuevoTablero) {
+            nuevoTablero = nuevo;
+        } else {
+            ultimo->setSiguiente(nuevo);
+        }
+
+        ultimo = nuevo;
+        actual = actual->getSiguiente();
+    }
+
+    return nuevoTablero;
+}
+
+NodoSistema* buscarNodo(NodoSistema* tablero, int x, int y) {
+    NodoSistema* actual = tablero;
+    while (actual) {
+        if (actual->getPosX() == x && actual->getPosY() == y) {
+            return actual;
+        }
+        actual = actual->getSiguiente();
+    }
+    return nullptr;
+}
+
+bool esCeldaLibre(NodoSistema* tablero, int x, int y) {
+    NodoSistema* nodo = buscarNodo(tablero, x, y);
+    return nodo && nodo->getTanque() == nullptr;
+}
+
+// FUNCIÓN CORREGIDA: Buscar tanque en lista enlazada
+pair<int, int> obtenerPosicionTanque(NodoSistema* tablero, Tanque* tanque) {
+    NodoSistema* actual = tablero;
+    while (actual) {
+        if (actual->getTanque() == tanque) {
+            return {actual->getPosX(), actual->getPosY()};
+        }
+        actual = actual->getSiguiente();
+    }
+    return {-1, -1}; // No encontrado
+}
+
+// Función para actualizar referencias de tanques después de clonar
+void actualizarReferenciasTanques(NodoSistema* tablero, Tanque*& tanqueIA, Tanque*& tanqueJugador) {
+    NodoSistema* actual = tablero;
+    while (actual) {
+        Tanque* tanque = actual->getTanque();
+        if (tanque) {
+            if (tanque->esIA()) {
+                tanqueIA = tanque;
+            } else {
+                tanqueJugador = tanque;
+            }
+        }
+        actual = actual->getSiguiente();
+    }
+}
+
+void moverseSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
+    if (!tanque) return;
+
+    NodoSistema* origen = nullptr;
+    NodoSistema* destino = nullptr;
+    NodoSistema* temp = tablero;
+
+    while (temp) {
+        if (temp->getTanque() == tanque) origen = temp;
+        if (temp->getPosX() == posX && temp->getPosY() == posY) destino = temp;
+        temp = temp->getSiguiente();
+    }
+
+    if (!origen || !destino || destino->getTanque()) return;
+
+    origen->setTanque(nullptr);
+    destino->setTanque(tanque);
+}
+
+
+void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
+    if (!tanque) return;
+
+    NodoSistema* origen = nullptr;
+    NodoSistema* objetivo = nullptr;
+    NodoSistema* temp = tablero;
+
+    while (temp) {
+        if (temp->getTanque() == tanque) origen = temp;
+        if (temp->getPosX() == posX && temp->getPosY() == posY) objetivo = temp;
+        temp = temp->getSiguiente();
+    }
+
+    if (!origen || !objetivo) return;
+
+    Tanque* blanco = objetivo->getTanque();
+    if (!blanco) return;
+
+    double probabilidad = tanque->getProbabilidadDeImpacto(origen->getTipoTerreno(), objetivo->getTipoTerreno());
+    int numeroAleatorio = rand() % 100;
+    if (numeroAleatorio < (probabilidad * 100)) {
+        blanco->actualizarVida(tanque->getDanio());
+    }
+}
+
+
+vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
+    vector<EstadoJuego*> hijos;
+
+    // Determinar el tanque que debe actuar
+    Tanque* tanqueActual = estado->turnoIA ? estado->tanqueIA : estado->tanqueJugador;
+
+    // Direcciones de movimiento (arriba, abajo, izquierda, derecha)
+    vector<pair<int, int>> direcciones = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+
+    // === GENERAR MOVIMIENTOS POSIBLES ===
+    for (auto& dir : direcciones) {
+        // Clonar el tablero
+        NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
+        
+        // Actualizar referencias a los tanques clonados
+        Tanque* clonIA = nullptr;
+        Tanque* clonJugador = nullptr;
+        actualizarReferenciasTanques(clonTablero, clonIA, clonJugador);
+
+        // Determinar el tanque que actúa
+        Tanque* clonActual = estado->turnoIA ? clonIA : clonJugador;
+
+        // Encontrar posición actual del tanque
+        pair<int, int> pos = obtenerPosicionTanque(clonTablero, clonActual);
+        if (pos.first == -1) continue; // Tanque no encontrado
+
+        int nuevaX = pos.first + dir.first;
+        int nuevaY = pos.second + dir.second;
+
+        // Validar movimiento dentro de límites
+        if (nuevaX >= 0 && nuevaX < 5 && nuevaY >= 0 && nuevaY < 5) {
+            if (esCeldaLibre(clonTablero, nuevaX, nuevaY)) {
+                // Usar la función de movimiento simulado
+                moverseSimulado(clonActual, clonTablero, nuevaX, nuevaY);
+                
+                EstadoJuego* hijo = new EstadoJuego(clonTablero, clonIA, clonJugador, !estado->turnoIA);
+                hijo->accionAplicada = MOVER;
+                hijo->posAccionX = nuevaX;
+                hijo->posAccionY = nuevaY;
+                hijos.push_back(hijo);
+                continue; // Evitar liberar memoria si el hijo es válido
+            }
+        }
+        
+        // Si llegamos aquí, el movimiento no fue válido, liberar memoria
+        while (clonTablero) {
+            NodoSistema* temp = clonTablero;
+            clonTablero = clonTablero->getSiguiente();
+            delete temp;
+        }
+    }
+
+    // === GENERAR DISPAROS POSIBLES ===
+    for (int y = 0; y < 5; ++y) {
+        for (int x = 0; x < 5; ++x) {
+            NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
+            
+            Tanque* clonIA = nullptr;
+            Tanque* clonJugador = nullptr;
+            actualizarReferenciasTanques(clonTablero, clonIA, clonJugador);
+
+            Tanque* clonActual = estado->turnoIA ? clonIA : clonJugador;
+
+            // Verificar si puede disparar a esta posición (que haya un tanque enemigo)
+            NodoSistema* objetivo = buscarNodo(clonTablero, x, y);
+            if (objetivo && objetivo->getTanque() && objetivo->getTanque() != clonActual) {
+                // Usar la función de disparo simulado
+                dispararSimulado(clonActual, clonTablero, x, y);
+                
+                EstadoJuego* hijo = new EstadoJuego(clonTablero, clonIA, clonJugador, !estado->turnoIA);
+                hijo->accionAplicada = DISPARAR;
+                hijo->posAccionX = x;
+                hijo->posAccionY = y;
+                hijos.push_back(hijo);
+                continue;
+            }
+            
+            // Si no es un disparo válido, liberar memoria
+            while (clonTablero) {
+                NodoSistema* temp = clonTablero;
+                clonTablero = clonTablero->getSiguiente();
+                delete temp;
+            }
+        }
+    }
+
+    return hijos;
+}
+
+int evaluarEstado(EstadoJuego* estado) {
+    int vidaIA = 0, vidaJugador = 0;
+    int terrenoIA = 0, terrenoJugador = 0;
+    int distanciaTotal = 0;
+
+    NodoSistema* nodoIA = nullptr;
+    NodoSistema* nodoJugador = nullptr;
+
+    // Buscar tanques en el tablero clonado
+    NodoSistema* actual = estado->tableroClonado;
+    while (actual) {
+        Tanque* t = actual->getTanque();
+        if (t) {
+            if (t->esIA()) {
+                vidaIA = t->getVida();
+                terrenoIA = actual->getTipoTerreno();
+                nodoIA = actual;
+            } else {
+                vidaJugador = t->getVida();
+                terrenoJugador = actual->getTipoTerreno();
+                nodoJugador = actual;
+            }
+        }
+        actual = actual->getSiguiente();
+    }
+
+    // Calcular distancia Manhattan
+    if (nodoIA && nodoJugador) {
+        int dx = abs(nodoIA->getPosX() - nodoJugador->getPosX());
+        int dy = abs(nodoIA->getPosY() - nodoJugador->getPosY());
+        distanciaTotal = dx + dy;
+    }
+
+    // Condiciones de victoria/derrota
+    if (vidaIA <= 0) return -1000; // IA pierde
+    if (vidaJugador <= 0) return 1000; // IA gana
+
+    // Evaluación heurística
+    return (vidaIA - vidaJugador) * 10 +
+           (terrenoIA - terrenoJugador) * 3 -
+           distanciaTotal * 2;
+}
+
+// === FUNCIÓN MINIMAX CON PODA ALFA-BETA CORREGIDA ===
+int minimax(EstadoJuego* estado, int profundidad, int alpha, int beta, bool debug = false) {
+    // Caso base: profundidad 0 o estado terminal
+    if (profundidad == 0) {
+        int val = evaluarEstado(estado);
+        if (debug) {
+            cout << "Evaluando estado hoja con valor: " << val << endl;
+        }
+        return val;
+    }
+
+    vector<EstadoJuego*> hijos = generarHijos(estado);
+    
+    // Si no hay movimientos posibles, evaluar estado actual
+    if (hijos.empty()) {
+        int val = evaluarEstado(estado);
+        if (debug) {
+            cout << "No hay movimientos disponibles, valor: " << val << endl;
+        }
+        return val;
+    }
+
+    int mejorValor;
+    
+    if (estado->turnoIA) {
+        // Maximizar para la IA
+        mejorValor = INT_MIN;
+        for (EstadoJuego* hijo : hijos) {
+            int eval = minimax(hijo, profundidad - 1, alpha, beta, debug);
+            mejorValor = max(mejorValor, eval);
+            alpha = max(alpha, eval);
+            
+            if (debug) {
+                string accionStr = (hijo->accionAplicada == MOVER) ? "MOVER" : "DISPARAR";
+                cout << "IA - " << accionStr << " a (" << hijo->posAccionX << "," 
+                     << hijo->posAccionY << ") => Valor: " << eval << endl;
+            }
+            
+            if (beta <= alpha) {
+                if (debug) cout << "Poda alfa-beta" << endl;
+                break; // Poda
+            }
+        }
+    } else {
+        // Minimizar para el jugador
+        mejorValor = INT_MAX;
+        for (EstadoJuego* hijo : hijos) {
+            int eval = minimax(hijo, profundidad - 1, alpha, beta, debug);
+            mejorValor = min(mejorValor, eval);
+            beta = min(beta, eval);
+            
+            if (debug) {
+                string accionStr = (hijo->accionAplicada == MOVER) ? "MOVER" : "DISPARAR";
+                cout << "Jugador - " << accionStr << " a (" << hijo->posAccionX << "," 
+                     << hijo->posAccionY << ") => Valor: " << eval << endl;
+            }
+            
+            if (beta <= alpha) {
+                if (debug) cout << "Poda alfa-beta" << endl;
+                break; // Poda
+            }
+        }
+    }
+
+    // Liberar memoria de los hijos
+    for (EstadoJuego* hijo : hijos) {
+        delete hijo;
+    }
+
+    return mejorValor;
+}
+
+// Función para encontrar la mejor jugada
+pair<Accion, pair<int, int>> encontrarMejorJugada(EstadoJuego* estadoActual, int profundidad) {
+    vector<EstadoJuego*> hijos = generarHijos(estadoActual);
+    
+    if (hijos.empty()) {
+        return {ESPERAR, {-1, -1}};
+    }
+
+    int mejorValor = INT_MIN;
+    EstadoJuego* mejorHijo = nullptr;
+
+    for (EstadoJuego* hijo : hijos) {
+        int valor = minimax(hijo, profundidad - 1, INT_MIN, INT_MAX);
+        
+        cout << "Evaluando acción: " << (hijo->accionAplicada == MOVER ? "MOVER" : "DISPARAR")
+             << " a (" << hijo->posAccionX << "," << hijo->posAccionY 
+             << ") => Valor: " << valor << endl;
+        
+        if (valor > mejorValor) {
+            mejorValor = valor;
+            mejorHijo = hijo;
+        }
+    }
+
+    Accion mejorAccion = mejorHijo->accionAplicada;
+    pair<int, int> mejorPosicion = {mejorHijo->posAccionX, mejorHijo->posAccionY};
+
+    // Liberar memoria
+    for (EstadoJuego* hijo : hijos) {
+        delete hijo;
+    }
+
+    return {mejorAccion, mejorPosicion};
+}
+
+// ========== FUNCIONES PARA EJECUTAR ACCIONES REALES ==========
+// Declaraciones de las funciones que ya tienes implementadas
+void moverseSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY);
+void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY);
+
+bool ejecutarMovimiento(NodoSistema* tableroReal, Tanque* tanque, int nuevaX, int nuevaY) {
+    // Validar que la nueva posición esté libre
+    if (!esCeldaLibre(tableroReal, nuevaX, nuevaY)) return false;
+
+    // Usar tu función de movimiento
+    moverseSimulado(tanque, tableroReal, nuevaX, nuevaY);
+
+    cout << "Tanque movido a (" << nuevaX << "," << nuevaY << ")" << endl;
+    return true;
+}
+
+bool ejecutarDisparo(NodoSistema* tableroReal, Tanque* atacante, int objetivoX, int objetivoY) {
+    // Encontrar el nodo objetivo
+    NodoSistema* nodoObjetivo = buscarNodo(tableroReal, objetivoX, objetivoY);
+    if (!nodoObjetivo || !nodoObjetivo->getTanque()) return false;
+
+    Tanque* tanqueObjetivo = nodoObjetivo->getTanque();
+    
+    // No puede atacarse a sí mismo
+    if (tanqueObjetivo == atacante) return false;
+
+    // Usar tu función de disparo
+    dispararSimulado(atacante, tableroReal, objetivoX, objetivoY);
+
+    cout << "Disparo realizado a (" << objetivoX << "," << objetivoY << ")" << endl;
+    return true;
+}
+
+// Función principal para que la IA tome una decisión y la ejecute
+bool turnoIA(NodoSistema* tableroReal, Tanque* tanqueIA, Tanque* tanqueJugador, int profundidad = 4) {
+    cout << "\n=== TURNO DE LA IA ===" << endl;
+    
+    // Crear estado actual
+    EstadoJuego* estadoActual = new EstadoJuego(tableroReal, tanqueIA, tanqueJugador, true);
+    
+    // Encontrar la mejor jugada
+    auto mejorJugada = encontrarMejorJugada(estadoActual, profundidad);
+    
+    Accion accion = mejorJugada.first;
+    int x = mejorJugada.second.first;
+    int y = mejorJugada.second.second;
+    
+    bool exito = false;
+    
+    // EJECUTAR LA ACCIÓN EN EL TABLERO REAL
+    if (accion == MOVER) {
+        cout << "IA decide MOVERSE a (" << x << "," << y << ")" << endl;
+        exito = ejecutarMovimiento(tableroReal, tanqueIA, x, y);
+    } 
+    else if (accion == DISPARAR) {
+        cout << "IA decide DISPARAR a (" << x << "," << y << ")" << endl;
+        exito = ejecutarDisparo(tableroReal, tanqueIA, x, y);
+    }
+    else {
+        cout << "IA decide ESPERAR" << endl;
+        exito = true; // Esperar siempre es válido
+    }
+    
+    delete estadoActual;
+    
+    if (!exito) {
+        cout << "Error: No se pudo ejecutar la acción de la IA" << endl;
+    }
+    
+    return exito;
+}
 
 void recorrerTablero(NodoSistema* head) {
     NodoSistema* temp = head;
@@ -139,7 +610,6 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     }
 }
 
-
 // Función que mueve un tanque a una posición específica
 void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     if (tanque == nullptr) {
@@ -183,6 +653,7 @@ void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
 
     cout << "Tanque movido exitosamente a la posición: (" << posX << ", " << posY << ")" << endl;
 }
+
 
 
 
@@ -984,7 +1455,154 @@ void menuAccionesJugador(
     }
 }
 
+// Función auxiliar para movimiento aleatorio cuando minimax falla
+void movimientoAleatorioFallback(Tanque* tanqueIA, NodoSistema* tablero, int filas, int columnas) {
+    // Encontrar nodo actual del tanque
+    NodoSistema* origen = nullptr;
+    NodoSistema* actual = tablero;
+    while (actual) {
+        if (actual->getTanque() == tanqueIA) {
+            origen = actual;
+            break;
+        }
+        actual = actual->getSiguiente();
+    }
+    
+    if (!origen) return;
 
+    // Decidir aleatoriamente: 0 = mover, 1 = disparar
+    int accion = rand() % 2;
+
+    if (accion == 0) {
+        // Intentar moverse
+        std::vector<NodoSistema*> opcionesMovimiento;
+        
+        // Direcciones: arriba, abajo, izquierda, derecha
+        int direcciones[4][2] = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+        
+        for (int i = 0; i < 4; i++) {
+            int newX = origen->getPosX() + direcciones[i][0];
+            int newY = origen->getPosY() + direcciones[i][1];
+
+            if (newX >= 0 && newX < columnas && newY >= 0 && newY < filas) {
+                NodoSistema* destino = buscarNodo(tablero, newX, newY);
+                if (destino && destino->getTanque() == nullptr) {
+                    opcionesMovimiento.push_back(destino);
+                }
+            }
+        }
+
+        if (!opcionesMovimiento.empty()) {
+            NodoSistema* destino = opcionesMovimiento[rand() % opcionesMovimiento.size()];
+            moverseSimulado(tanqueIA, tablero, destino->getPosX(), destino->getPosY());
+            std::cout << "Movimiento aleatorio a (" << destino->getPosX() << "," << destino->getPosY() << ")" << std::endl;
+        }
+    } else {
+        // Intentar disparar
+        std::vector<NodoSistema*> enemigosVivos;
+        NodoSistema* temp = tablero;
+        while (temp) {
+            Tanque* t = temp->getTanque();
+            if (t && !t->esIA() && t->getVida() > 0) {
+                enemigosVivos.push_back(temp);
+            }
+            temp = temp->getSiguiente();
+        }
+
+        if (!enemigosVivos.empty()) {
+            NodoSistema* objetivo = enemigosVivos[rand() % enemigosVivos.size()];
+            dispararSimulado(tanqueIA, tablero, objetivo->getPosX(), objetivo->getPosY());
+            std::cout << "Disparo aleatorio a (" << objetivo->getPosX() << "," << objetivo->getPosY() << ")" << std::endl;
+        }
+    }
+}
+
+void accionesIADificil(
+    std::stack<Tanque*>& tanquesIA,
+    NodoSistema* tablero,
+    int filas,
+    int columnas
+) {
+    // Obtener tanques vivos
+    std::stack<Tanque*> copia = tanquesIA;
+    std::vector<Tanque*> tanquesDisponibles;
+    cout<<"aaaaaaaaaaa"<<endl;
+
+    while (!copia.empty()) {
+        if (copia.top()->getVida() > 0)
+            tanquesDisponibles.push_back(copia.top());
+        copia.pop();
+    }
+
+    if (tanquesDisponibles.empty()) return;
+
+    // Elegir un tanque aleatorio
+    Tanque* tanqueIA = tanquesDisponibles[rand() % tanquesDisponibles.size()];
+
+    // Encontrar el tanque del jugador
+    Tanque* tanqueJugador = nullptr;
+    NodoSistema* temp = tablero;
+    while (temp) {
+        Tanque* t = temp->getTanque();
+        if (t && !t->esIA() && t->getVida() > 0) {
+            tanqueJugador = t;
+            break;
+        }
+        temp = temp->getSiguiente();
+    }
+
+    cout<<"aaaaaaaax2"<<endl;
+    if (!tanqueJugador) {
+        std::cout << "No hay tanques enemigos vivos" << std::endl;
+        return;
+    }
+
+    // CREAR ESTADO INICIAL CORRECTAMENTE
+    // Nota: No clonamos aquí porque EstadoJuego se encarga de clonar
+    EstadoJuego* estadoActual = new EstadoJuego(tablero, tanqueIA, tanqueJugador, true);
+    
+
+    cout<<"aaaaaaaax2.5"<<endl;
+    // ENCONTRAR LA MEJOR JUGADA
+    auto mejorJugada = encontrarMejorJugada(estadoActual, 4); // profundidad 4
+    
+
+    cout<<"aaaaaaaax2.6"<<endl;
+    Accion mejorAccion = mejorJugada.first;
+    int mejorX = mejorJugada.second.first;
+    int mejorY = mejorJugada.second.second;
+
+
+    cout<<"aaaaaaaax2.7"<<endl;
+    // EJECUTAR LA ACCIÓN EN EL TABLERO REAL
+    bool exito = false;
+    
+
+    cout<<"aaaaaaaax3"<<endl;
+    if (mejorAccion == MOVER) {
+        std::cout << "IA decide MOVERSE a (" << mejorX << "," << mejorY << ")" << std::endl;
+        exito = ejecutarMovimiento(tablero, tanqueIA, mejorX, mejorY);
+    } 
+    else if (mejorAccion == DISPARAR) {
+        std::cout << "IA decide DISPARAR a (" << mejorX << "," << mejorY << ")" << std::endl;
+        exito = ejecutarDisparo(tablero, tanqueIA, mejorX, mejorY);
+    }
+    else {
+        std::cout << "IA decide ESPERAR" << std::endl;
+        exito = true; // Esperar siempre es válido
+    }
+
+    if (!exito) {
+        std::cout << "Error: No se pudo ejecutar la acción de la IA" << std::endl;
+        
+        // FALLBACK: Si minimax falla, usar movimiento aleatorio
+        std::cout << "Usando movimiento aleatorio como fallback..." << std::endl;
+        movimientoAleatorioFallback(tanqueIA, tablero, filas, columnas);
+    }
+
+    // Liberar memoria
+    //delete estadoActual;
+}
 
 bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::string& mensaje) {
     sf::Text texto;
@@ -1040,8 +1658,8 @@ bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::st
 void bucleDeCombate(
     sf::RenderWindow& window,
     sf::Font& font,
-    std::stack<Tanque*> tanquesJugador,
-    std::stack<Tanque*> tanquesIA,
+    std::stack<Tanque*>& tanquesJugador,  // Pasar por referencia para que se mantenga el estado
+    std::stack<Tanque*>& tanquesIA,       // Igual, referencia
     NodoSistema* tablero,
     int filas,
     int columnas,
@@ -1061,23 +1679,27 @@ void bucleDeCombate(
     while (window.isOpen()) {
         // Verificar si todos los tanques de un bando fueron destruidos
         bool jugadorSinTanques = true;
-        std::stack<Tanque*> tempJugador = tanquesJugador;
-        while (!tempJugador.empty()) {
-            if (tempJugador.top()->getVida() > 0) {
-                jugadorSinTanques = false;
-                break;
+        {
+            std::stack<Tanque*> tempJugador = tanquesJugador; 
+            while (!tempJugador.empty()) {
+                if (tempJugador.top()->getVida() > 0) {
+                    jugadorSinTanques = false;
+                    break;
+                }
+                tempJugador.pop();
             }
-            tempJugador.pop();
         }
 
         bool iaSinTanques = true;
-        std::stack<Tanque*> tempIA = tanquesIA;
-        while (!tempIA.empty()) {
-            if (tempIA.top()->getVida() > 0) {
-                iaSinTanques = false;
-                break;
+        {
+            std::stack<Tanque*> tempIA = tanquesIA;
+            while (!tempIA.empty()) {
+                if (tempIA.top()->getVida() > 0) {
+                    iaSinTanques = false;
+                    break;
+                }
+                tempIA.pop();
             }
-            tempIA.pop();
         }
 
         if (jugadorSinTanques || iaSinTanques) {
@@ -1093,7 +1715,8 @@ void bucleDeCombate(
             window, font, tanquesJugador, tablero, filas, columnas, cellSize,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
+            texturaExplosionTerreno, texturaExplosionTanque
         );
 
         // Redibujar el tablero después del turno del jugador
@@ -1102,22 +1725,26 @@ void bucleDeCombate(
             window, font, filas, columnas, cellSize, tablero,
             texturaTerreno1, texturaTerreno2, texturaTerreno3,
             texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, texturaExplosionTerreno, texturaExplosionTanque
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
+            texturaExplosionTerreno, texturaExplosionTanque
         );
         window.display();
 
-        // Turno de la IA
-        // menuAccionesIA(...);
+        // Turno de la IA - ejecutar acción difícil
+        accionesIADificil(tanquesIA, tablero, filas, columnas);
 
-
-        
-        // window.clear();
-        // desplegarTablero(...);
-        // window.display();
+        // Redibujar tablero luego de la acción de la IA
+        window.clear();
+        desplegarTablero(
+            window, font, filas, columnas, cellSize, tablero,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
+            texturaExplosionTerreno, texturaExplosionTanque
+        );
+        window.display();
     }
 }
-
-
 
 int main() {
     const int cellSize = 100;

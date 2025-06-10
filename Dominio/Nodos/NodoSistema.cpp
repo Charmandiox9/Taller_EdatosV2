@@ -1,7 +1,7 @@
 #include "NodoSistema.h"
 #include <iostream>
 
-NodoSistema::NodoSistema(int id, int x, int y, int tipoTerreno)
+NodoSistema::NodoSistema(int id, int x, int y, int tipoTerreno) 
     : idNodo(id),
       posicionX(x),
       posicionY(y),

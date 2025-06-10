@@ -75,3 +75,10 @@ void Tanque::setDanio(int nuevoDanio) {
 void Tanque::setMovimientoBase(int nuevoMovimientoBase) {
     movimientoBase = nuevoMovimientoBase;
 }
+
+// En Tanque.h o Tanque.cpp (como método público)
+// Tanque.cpp
+bool Tanque::esIA() const {
+    return idTanque >= 100;
+}
+
