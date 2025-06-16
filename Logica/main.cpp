@@ -457,7 +457,7 @@ bool ejecutarDisparo(NodoSistema* tableroReal, Tanque* atacante, int objetivoX, 
 }
 
 // Función principal para que la IA tome una decisión y la ejecute
-bool turnoIA(NodoSistema* tableroReal, Tanque* tanqueIA, Tanque* tanqueJugador, int profundidad = 4) {
+bool turnoIA(NodoSistema* tableroReal, Tanque* tanqueIA, Tanque* tanqueJugador, int profundidad = 6) {
     cout << "\n=== TURNO DE LA IA ===" << endl;
     
     // Crear estado actual
@@ -1230,6 +1230,349 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
     return 1;
 }
 
+// Estructura para almacenar una acción planificada
+struct AccionPlanificada {
+    Tanque* tanque;
+    std::string tipoAccion; // "Moverse" o "Atacar"
+    int coordX;
+    int coordY;
+    bool esValida;
+    
+    AccionPlanificada() : tanque(nullptr), tipoAccion(""), coordX(-1), coordY(-1), esValida(false) {}
+    AccionPlanificada(Tanque* t, std::string tipo, int x, int y) 
+        : tanque(t), tipoAccion(tipo), coordX(x), coordY(y), esValida(true) {}
+};
+
+// Función para obtener la acción de la IA (modificada para retornar en lugar de ejecutar)
+AccionPlanificada obtenerAccionIA(
+    std::stack<Tanque*>& tanquesIA,
+    NodoSistema* tablero,
+    int filas,
+    int columnas
+) {
+    // Obtener tanques vivos
+    std::stack<Tanque*> copia = tanquesIA;
+    std::vector<Tanque*> tanquesDisponibles;
+
+    while (!copia.empty()) {
+        if (copia.top()->getVida() > 0)
+            tanquesDisponibles.push_back(copia.top());
+        copia.pop();
+    }
+
+    if (tanquesDisponibles.empty()) return AccionPlanificada();
+
+    // Elegir un tanque aleatorio
+    Tanque* tanqueIA = tanquesDisponibles[rand() % tanquesDisponibles.size()];
+
+    // Encontrar el tanque del jugador
+    Tanque* tanqueJugador = nullptr;
+    NodoSistema* temp = tablero;
+    while (temp) {
+        Tanque* t = temp->getTanque();
+        if (t && !t->esIA() && t->getVida() > 0) {
+            tanqueJugador = t;
+            break;
+        }
+        temp = temp->getSiguiente();
+    }
+
+    if (!tanqueJugador) {
+        std::cout << "No hay tanques enemigos vivos" << std::endl;
+        return AccionPlanificada();
+    }
+
+    // Crear estado y encontrar mejor jugada
+    EstadoJuego* estadoActual = new EstadoJuego(tablero, tanqueIA, tanqueJugador, true);
+    auto mejorJugada = encontrarMejorJugada(estadoActual, 6);
+    
+    Accion mejorAccion = mejorJugada.first;
+    int mejorX = mejorJugada.second.first;
+    int mejorY = mejorJugada.second.second;
+
+    // Retornar la acción planificada en lugar de ejecutarla
+    if (mejorAccion == MOVER) {
+        std::cout << "IA planifica MOVERSE a (" << mejorX << "," << mejorY << ")" << std::endl;
+        return AccionPlanificada(tanqueIA, "Moverse", mejorX, mejorY);
+    } 
+    else if (mejorAccion == DISPARAR) {
+        std::cout << "IA planifica DISPARAR a (" << mejorX << "," << mejorY << ")" << std::endl;
+        return AccionPlanificada(tanqueIA, "Atacar", mejorX, mejorY);
+    }
+    
+    // Si no hay acción válida, retornar acción inválida
+    return AccionPlanificada();
+}
+
+// Función modificada del menú del jugador para retornar la acción en lugar de ejecutarla
+AccionPlanificada menuAccionesJugadorSimultaneo(
+    sf::RenderWindow& window,
+    sf::Font& font,
+    std::stack<Tanque*> tanquesJugadorStack,
+    NodoSistema* tablero,
+    int filas,
+    int columnas,
+    int cellSize,
+    sf::Texture& texturaTerreno1,
+    sf::Texture& texturaTerreno2,
+    sf::Texture& texturaTerreno3,
+    sf::Texture& texturaTanqueLigeroJugador,
+    sf::Texture& texturaTanqueMedianoJugador,
+    sf::Texture& texturaTanquePesadoJugador,
+    sf::Texture& texturaTanqueLigeroIA,
+    sf::Texture& texturaTanqueMedianoIA,
+    sf::Texture& texturaTanquePesadoIA,
+    sf::Texture& texturaExplosionTerreno,
+    sf::Texture& texturaExplosionTanque
+) {
+    // ... (código de inicialización igual que antes)
+    std::vector<Tanque*> tanquesJugador;
+    std::stack<Tanque*> copia = tanquesJugadorStack;
+    while (!copia.empty()) {
+        tanquesJugador.push_back(copia.top());
+        copia.pop();
+    }
+    std::reverse(tanquesJugador.begin(), tanquesJugador.end());
+
+    if (tanquesJugador.empty()) {
+        std::cout << "ERROR: No hay tanques para el jugador." << std::endl;
+        return AccionPlanificada();
+    }
+
+    int indiceTanque = 0;
+    int paso = 0;
+    std::string accion = "Moverse";
+    int coordX = 0, coordY = 0;
+    bool coordenadaY = true;
+    bool turnoCompletado = false;
+    bool errorCoordenadas = false;
+
+    const int infoY = 10;
+    const int menuX = columnas * cellSize + 70;
+    const int menuY = 100;
+    const int offsetTableroX = 50;
+    const int offsetTableroY = 90;
+
+    sf::RectangleShape previewRect(sf::Vector2f(cellSize - 2, cellSize - 2));
+    previewRect.setOutlineThickness(1);
+    previewRect.setOutlineColor(sf::Color::Black);
+
+    while (window.isOpen() && !turnoCompletado) {
+        // ... (manejo de eventos igual que antes hasta la parte de ejecutar)
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) window.close();
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Escape) return AccionPlanificada();
+
+                if (paso == 0) {
+                    if (event.key.code == sf::Keyboard::Up)
+                        indiceTanque = (indiceTanque - 1 + tanquesJugador.size()) % tanquesJugador.size();
+                    if (event.key.code == sf::Keyboard::Down)
+                        indiceTanque = (indiceTanque + 1) % tanquesJugador.size();
+                    if (event.key.code == sf::Keyboard::Enter) {
+                        paso = 1;
+                        errorCoordenadas = false;
+                    }
+                }
+                else if (paso == 1) {
+                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down)
+                        accion = (accion == "Moverse") ? "Atacar" : "Moverse";
+                    if (event.key.code == sf::Keyboard::Enter) {
+                        paso = 2;
+                        coordX = coordY = 0;
+                        coordenadaY = false;
+                        errorCoordenadas = false;
+                    }
+                }
+                else if (paso == 2) {
+                    // ... (manejo de entrada de coordenadas igual que antes)
+                    int digit = -1;
+                    if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9)
+                        digit = event.key.code - sf::Keyboard::Num0;
+                    else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9)
+                        digit = event.key.code - sf::Keyboard::Numpad0;
+
+                    if (digit != -1 && digit >= 0 && digit < 5) { 
+                        if (!coordenadaY && coordX == 0) coordX = digit;
+                        else if (coordenadaY && coordY == 0) coordY = digit;
+                    }
+
+                    if (event.key.code == sf::Keyboard::Space || event.key.code == sf::Keyboard::Right)
+                        coordenadaY = !coordenadaY;
+
+                    if (event.key.code == sf::Keyboard::Left)
+                        coordenadaY = !coordenadaY;
+
+                    if (event.key.code == sf::Keyboard::BackSpace) {
+                        if (coordenadaY)
+                            coordY = 0;
+                        else
+                            coordX = 0;
+                    }
+
+                    if (event.key.code == sf::Keyboard::Enter) {
+                        if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
+                            Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
+                            std::cout << "Jugador planifica " << accion << " en (" << coordX << "," << coordY << ")" << std::endl;
+                            
+                            // RETORNAR la acción en lugar de ejecutarla
+                            return AccionPlanificada(tanqueSeleccionado, accion, coordX, coordY);
+                        } else {
+                            errorCoordenadas = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        window.clear();
+
+        // Recuadro superior de información
+        const int infoPanelHeight = 50;
+        sf::RectangleShape infoPanel(sf::Vector2f(window.getSize().x, infoPanelHeight));
+        infoPanel.setPosition(0, 0);
+        infoPanel.setFillColor(sf::Color(30, 30, 30, 220));
+        infoPanel.setOutlineColor(sf::Color::White);
+        infoPanel.setOutlineThickness(2);
+        window.draw(infoPanel);
+
+        // Texto de información de tanques
+        for (size_t i = 0; i < tanquesJugador.size(); ++i) {
+            std::string tipo;
+            int dmg = tanquesJugador[i]->getDanio();
+            if (dmg == 100) tipo = "Ligero";
+            else if (dmg == 150) tipo = "Mediano";
+            else if (dmg == 200) tipo = "Pesado";
+            else tipo = "Desconocido";
+
+            sf::Text info("Tanque " + std::to_string(i + 1) + " (" + tipo + ") Vida: " + std::to_string(tanquesJugador[i]->getVida()), font, 16);
+            info.setPosition(20 + i * 250, 15);
+            info.setFillColor(i == indiceTanque ? sf::Color::Yellow : sf::Color::White);
+            window.draw(info);
+        }
+
+        // Dibujar el tablero
+        desplegarTablero(
+            window, font, filas, columnas, cellSize, tablero,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA, 
+            texturaExplosionTerreno, texturaExplosionTanque
+        );
+
+        // Mostrar preview de la acción si está en paso 2
+        if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
+            previewRect.setPosition(coordX * cellSize + offsetTableroX + 1, coordY * cellSize + offsetTableroY + 1);
+            previewRect.setFillColor((accion == "Moverse") ? sf::Color(0, 255, 0, 100) : sf::Color(255, 0, 0, 100));
+            window.draw(previewRect);
+        }
+
+        // Dibujar menú lateral
+        const int menuWidth = 230;
+        const int menuHeight = 160;
+        const int menuPadding = 10;
+
+        sf::RectangleShape menuBackground(sf::Vector2f(menuWidth, menuHeight));
+        menuBackground.setPosition(menuX - menuPadding, menuY - menuPadding);
+        menuBackground.setFillColor(sf::Color(50, 50, 50, 200));
+        menuBackground.setOutlineColor(sf::Color::White);
+        menuBackground.setOutlineThickness(2);
+        window.draw(menuBackground);
+
+        sf::Text menu;
+        menu.setFont(font);
+        menu.setCharacterSize(20);
+        menu.setFillColor(sf::Color::White);
+        menu.setPosition(menuX, menuY);
+
+        if (paso == 0)
+            menu.setString("Selecciona un tanque\n(UP/DOWN)\nENTER para confirmar");
+        else if (paso == 1)
+            menu.setString("Accion: " + accion + "\n(UP/DOWN para cambiar)\nENTER para confirmar");
+        else if (paso == 2) {
+            std::string mensaje = "Ingresa coordenadas:\n";
+            mensaje += "X: " + std::to_string(coordX) + "  Y: " + std::to_string(coordY);
+            mensaje += "\nEditando: " + std::string(coordenadaY ? "Y" : "X");
+            mensaje += "\nSPACE para cambiar entre X/Y\nENTER para ejecutar\nBACKSPACE para borrar";
+            if (errorCoordenadas)
+                mensaje += "\n[Coordenadas inválidas]";
+            menu.setString(mensaje);
+        }
+
+        window.draw(menu);
+
+        // Mostrar explosión si existe (copiado de tu código original)
+        sf::Sprite spritePreviewExplosion;
+        std::string textoExplosion;
+        if (ultimaExplosion == TERRENO) {
+            spritePreviewExplosion.setTexture(texturaExplosionTerreno);
+            textoExplosion = "Disparo acerto al terreno";
+        } else if (ultimaExplosion == TANQUE) {
+            spritePreviewExplosion.setTexture(texturaExplosionTanque);
+            textoExplosion = "Disparo acerto a un tanque";
+        }
+        if (ultimaExplosion != NINGUNA) {
+            float explosionX = 475; 
+            float explosionY = menuY + menuHeight + 50;
+            spritePreviewExplosion.setScale(1.5f, 1.5f);
+            spritePreviewExplosion.setPosition(explosionX, explosionY);
+
+            // Texto arriba de la explosión
+            sf::Text texto;
+            texto.setFont(font);
+            texto.setString(textoExplosion);
+            texto.setCharacterSize(20);
+            texto.setFillColor(sf::Color::White);
+            texto.setPosition(explosionX + 100, explosionY + 80);
+            window.draw(texto);
+
+            window.draw(spritePreviewExplosion);
+        }
+
+        window.display();
+    }
+    
+    return AccionPlanificada(); // Si sale del bucle sin completar
+}
+
+// Función para ejecutar las acciones simultáneamente
+void ejecutarAccionesSimultaneas(
+    AccionPlanificada accionJugador,
+    AccionPlanificada accionIA,
+    NodoSistema* tablero
+) {
+    std::cout << "\n=== EJECUTANDO ACCIONES SIMULTÁNEAS ===" << std::endl;
+    
+    bool exitoJugador = false;
+    bool exitoIA = false;
+    
+    // Ejecutar acción del jugador
+    if (accionJugador.esValida) {
+        if (accionJugador.tipoAccion == "Moverse") {
+            exitoJugador = ejecutarMovimiento(tablero, accionJugador.tanque, accionJugador.coordX, accionJugador.coordY);
+            std::cout << "Jugador ejecuta movimiento: " << (exitoJugador ? "ÉXITO" : "FALLÓ") << std::endl;
+        } else if (accionJugador.tipoAccion == "Atacar") {
+            exitoJugador = ejecutarDisparo(tablero, accionJugador.tanque, accionJugador.coordX, accionJugador.coordY);
+            std::cout << "Jugador ejecuta disparo: " << (exitoJugador ? "ÉXITO" : "FALLÓ") << std::endl;
+        }
+    }
+    
+    // Ejecutar acción de la IA
+    if (accionIA.esValida) {
+        if (accionIA.tipoAccion == "Moverse") {
+            exitoIA = ejecutarMovimiento(tablero, accionIA.tanque, accionIA.coordX, accionIA.coordY);
+            std::cout << "IA ejecuta movimiento: " << (exitoIA ? "ÉXITO" : "FALLÓ") << std::endl;
+        } else if (accionIA.tipoAccion == "Atacar") {
+            exitoIA = ejecutarDisparo(tablero, accionIA.tanque, accionIA.coordX, accionIA.coordY);
+            std::cout << "IA ejecuta disparo: " << (exitoIA ? "ÉXITO" : "FALLÓ") << std::endl;
+        }
+    }
+    
+    std::cout << "=== FIN DE ACCIONES SIMULTÁNEAS ===\n" << std::endl;
+}
+
+
 void menuAccionesJugador(
     sf::RenderWindow& window,
     sf::Font& font,
@@ -1564,7 +1907,7 @@ void accionesIADificil(
 
     cout<<"aaaaaaaax2.5"<<endl;
     // ENCONTRAR LA MEJOR JUGADA
-    auto mejorJugada = encontrarMejorJugada(estadoActual, 4); // profundidad 4
+    auto mejorJugada = encontrarMejorJugada(estadoActual, 6); // profundidad 4
     
 
     cout<<"aaaaaaaax2.6"<<endl;
@@ -1653,7 +1996,93 @@ bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::st
     return false;
 }
 
+void bucleDeCombateSimultaneo(
+    sf::RenderWindow& window,
+    sf::Font& font,
+    std::stack<Tanque*>& tanquesJugador,
+    std::stack<Tanque*>& tanquesIA,
+    NodoSistema* tablero,
+    int filas,
+    int columnas,
+    int cellSize,
+    sf::Texture& texturaTerreno1,
+    sf::Texture& texturaTerreno2,
+    sf::Texture& texturaTerreno3,
+    sf::Texture& texturaTanqueLigeroJugador,
+    sf::Texture& texturaTanqueMedianoJugador,
+    sf::Texture& texturaTanquePesadoJugador,
+    sf::Texture& texturaTanqueLigeroIA,
+    sf::Texture& texturaTanqueMedianoIA,
+    sf::Texture& texturaTanquePesadoIA,
+    sf::Texture& texturaExplosionTerreno,
+    sf::Texture& texturaExplosionTanque
+) {
+    while (window.isOpen()) {
+        // Verificar condiciones de victoria (igual que antes)
+        bool jugadorSinTanques = true;
+        {
+            std::stack<Tanque*> tempJugador = tanquesJugador; 
+            while (!tempJugador.empty()) {
+                if (tempJugador.top()->getVida() > 0) {
+                    jugadorSinTanques = false;
+                    break;
+                }
+                tempJugador.pop();
+            }
+        }
 
+        bool iaSinTanques = true;
+        {
+            std::stack<Tanque*> tempIA = tanquesIA;
+            while (!tempIA.empty()) {
+                if (tempIA.top()->getVida() > 0) {
+                    iaSinTanques = false;
+                    break;
+                }
+                tempIA.pop();
+            }
+        }
+
+        if (jugadorSinTanques || iaSinTanques) {
+            std::string mensajeFinal = jugadorSinTanques ? "Has perdido" : "Has ganado";
+            bool volverAlMenu = mostrarMensajeFinal(window, font, mensajeFinal);
+            if (volverAlMenu) {
+                return; 
+            }
+        }
+
+        // FASE 1: Obtener acción del jugador
+        std::cout << "\n--- TURNO DEL JUGADOR ---" << std::endl;
+        AccionPlanificada accionJugador = menuAccionesJugadorSimultaneo(
+            window, font, tanquesJugador, tablero, filas, columnas, cellSize,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
+            texturaExplosionTerreno, texturaExplosionTanque
+        );
+
+        // FASE 2: Obtener acción de la IA
+        std::cout << "\n--- TURNO DE LA IA ---" << std::endl;
+        AccionPlanificada accionIA = obtenerAccionIA(tanquesIA, tablero, filas, columnas);
+
+        // FASE 3: Ejecutar ambas acciones simultáneamente
+        ejecutarAccionesSimultaneas(accionJugador, accionIA, tablero);
+
+        // FASE 4: Mostrar resultado final
+        window.clear();
+        desplegarTablero(
+            window, font, filas, columnas, cellSize, tablero,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
+            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
+            texturaExplosionTerreno, texturaExplosionTanque
+        );
+        window.display();
+        
+        // Pausa para que el jugador pueda ver el resultado
+        sf::sleep(sf::milliseconds(1500));
+    }
+}
 
 void bucleDeCombate(
     sf::RenderWindow& window,
@@ -1822,7 +2251,7 @@ int main() {
             // Seleccionar tanques para IA y luego desplegar
             seleccionarTanquesIA(tanquesIA, tableroPosiciones);
 
-            bucleDeCombate(
+            bucleDeCombateSimultaneo(
             window, font,
             tanquesJugador, tanquesIA, tableroPosiciones,
             filas, columnas, cellSize,
@@ -1830,6 +2259,16 @@ int main() {
             texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
             texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, texturaExplosionTerreno, texturaExplosionTanque
             );
+
+            /*
+            bucleDeCombate(
+            window, font,
+            tanquesJugador, tanquesIA, tableroPosiciones,
+            filas, columnas, cellSize,
+            texturaTerreno1, texturaTerreno2, texturaTerreno3,
+            texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
+            texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, texturaExplosionTerreno, texturaExplosionTanque
+            );*/
 
             // Liberar memoria de tanques
             while (!tanquesJugador.empty()) {
