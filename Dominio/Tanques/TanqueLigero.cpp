@@ -18,3 +18,8 @@ int TanqueLigero::getDanio() const{
 int TanqueLigero::getMovimientoBase() const{
     return movimientoBase;
 }
+
+Tanque* TanqueLigero::clonar() const {
+    return new TanqueLigero(*this);
+}
+

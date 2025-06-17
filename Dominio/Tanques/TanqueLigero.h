@@ -16,6 +16,7 @@ public:
 
     int getDanio() const;
     int getMovimientoBase() const;
+    Tanque* clonar() const override;
 
 };
 

@@ -23,6 +23,9 @@ public:
     void setVida(int nuevaVida);
     virtual void setDanio(int nuevodanio);
     virtual void setMovimientoBase(int nuevoMovimientoBase);
+    virtual bool esIA() const;
+    virtual Tanque* clonar() const = 0;
+
 
     virtual ~Tanque() = default;
 };
