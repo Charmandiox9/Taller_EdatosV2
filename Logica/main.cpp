@@ -15,6 +15,23 @@
 #include "../Dominio/Nodos/NodoSistema.h"
 using namespace std;
 
+// Variables globales para configuraciones
+float volumenMusica = 50.0f;
+float volumenEfectos = 50.0f;
+int resolucionSeleccionada = 1; // 0=800x600, 1=1024x768, 2=1280x720, 3=1920x1080
+
+struct Resolucion {
+    int ancho, alto;
+    std::string nombre;
+};
+
+std::vector<Resolucion> resoluciones = {
+    {800, 600, "800x600"},
+    {1024, 768, "1024x768"},
+    {1280, 720, "1280x720"},
+    {1920, 1080, "1920x1080"}
+};
+
 enum TipoExplosion { NINGUNA, TERRENO, TANQUE };
 
 struct Explosion {
@@ -1494,9 +1511,22 @@ void mostrarPantallaInicio(sf::RenderWindow& window, sf::Font& font) {
 }
 
 
+// Función para aplicar configuración de pantalla
+void aplicarConfiguracionPantalla(sf::RenderWindow& window) {
+    // Cambiar a ventana normal con la resolución seleccionada
+    Resolucion res = resoluciones[resolucionSeleccionada];
+    window.create(sf::VideoMode(res.ancho, res.alto), "Ferrum Bellum", sf::Style::Default);
+}
 
-int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
-    std::vector<std::string> opciones = {"Jugar", "Salir"};
+// MENÚ DE CONFIGURACIÓN (SOLO MÚSICA Y RESOLUCIÓN)
+int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
+    std::vector<std::string> opciones = {
+        "Volumen Musica",
+        "Resolucion",
+        "Restablecer",
+        "Volver"
+    };
+    
     int seleccion = 0;
 
     auto centrarTexto = [](sf::Text& texto) {
@@ -1510,7 +1540,152 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
                 window.close();
-                return 1;
+                return -1;
+            } else if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Up) {
+                    seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Down) {
+                    seleccion = (seleccion + 1) % opciones.size();
+                } else if (event.key.code == sf::Keyboard::Left) {
+                    // Ajustar valores hacia la izquierda
+                    switch(seleccion) {
+                        case 0: // Volumen Música
+                            volumenMusica = std::max(0.0f, volumenMusica - 5.0f);
+                            break;
+                        case 1: // Resolución
+                            resolucionSeleccionada = (resolucionSeleccionada - 1 + resoluciones.size()) % resoluciones.size();
+                            break;
+                    }
+                } else if (event.key.code == sf::Keyboard::Right) {
+                    // Ajustar valores hacia la derecha
+                    switch(seleccion) {
+                        case 0: // Volumen Música
+                            volumenMusica = std::min(100.0f, volumenMusica + 5.0f);
+                            break;
+                        case 1: // Resolución
+                            resolucionSeleccionada = (resolucionSeleccionada + 1) % resoluciones.size();
+                            break;
+                    }
+                } else if (event.key.code == sf::Keyboard::Enter) {
+                    switch(seleccion) {
+                        case 2: // Restablecer
+                            volumenMusica = 50.0f;
+                            resolucionSeleccionada = 1;
+                            break;
+                        case 3: // Volver
+                            return 0;
+                    }
+                } else if (event.key.code == sf::Keyboard::Escape) {
+                    return 0;
+                }
+            }
+        }
+
+        sf::Vector2u size = window.getSize();
+        float centerX = size.x / 2.f;
+        float startY = 50.f;
+
+        unsigned int tamTitulo = 36;
+        unsigned int tamTexto = 20;
+        float espacioLinea = 35.f;
+
+        window.clear(sf::Color::Black);
+
+        // Título
+        sf::Text titulo("CONFIGURACION", font, tamTitulo);
+        titulo.setStyle(sf::Text::Bold);
+        centrarTexto(titulo);
+        titulo.setPosition(centerX, startY);
+        window.draw(titulo);
+
+        // Opciones
+        for (int i = 0; i < (int)opciones.size(); ++i) {
+            float posY = startY + 80 + i * espacioLinea;
+            
+            // Texto de la opción
+            sf::Text textoOpcion(opciones[i], font, tamTexto);
+            textoOpcion.setPosition(50, posY);
+            
+            // Valor actual de la opción
+            std::string valor = "";
+            switch(i) {
+                case 0: valor = std::to_string((int)volumenMusica) + "%"; break;
+                case 1: valor = resoluciones[resolucionSeleccionada].nombre; break;
+                case 2: valor = "Ejecutar"; break;
+                case 3: valor = ""; break;
+            }
+
+            if (i == seleccion) {
+                // Highlight
+                sf::RectangleShape highlight(sf::Vector2f(size.x - 100, espacioLinea));
+                highlight.setFillColor(sf::Color(10, 10, 10));
+                highlight.setPosition(50, posY - 5);
+                window.draw(highlight);
+                
+                textoOpcion.setFillColor(sf::Color(110, 180, 100));
+                textoOpcion.setStyle(sf::Text::Bold);
+            } else {
+                textoOpcion.setFillColor(sf::Color::White);
+            }
+
+            window.draw(textoOpcion);
+
+            // Dibujar valor
+            if (!valor.empty()) {
+                sf::Text textoValor(valor, font, tamTexto);
+                textoValor.setFillColor(i == seleccion ? sf::Color::White : sf::Color(200, 200, 200));
+                textoValor.setPosition(size.x - 220, posY);
+                window.draw(textoValor);
+            }
+
+            // Barra de volumen (solo para música)
+            if (i == 0) {
+                sf::RectangleShape barraFondo(sf::Vector2f(120, 8));
+                barraFondo.setFillColor(sf::Color(60, 60, 60));
+                barraFondo.setPosition(size.x - 180, posY + 8);
+                window.draw(barraFondo);
+
+                sf::RectangleShape barraVolumen(sf::Vector2f(120 * (volumenMusica / 100.0f), 8));
+                barraVolumen.setFillColor(sf::Color(110, 180, 100));
+                barraVolumen.setPosition(size.x - 180, posY + 8);
+                window.draw(barraVolumen);
+            }
+        }
+
+        // Instrucciones
+        sf::Text instrucciones;
+        instrucciones.setString("Usa flechas para navegar, <- -> para cambiar valores, ENTER para activar, ESC para volver");
+        instrucciones.setFont(font);
+        instrucciones.setCharacterSize(16);
+        instrucciones.setFillColor(sf::Color(150, 150, 150));
+        centrarTexto(instrucciones);
+        instrucciones.setPosition(centerX, size.y - 30);
+        window.draw(instrucciones);
+
+        window.display();
+    }
+    return -1;
+}
+
+
+
+// MENÚ PRINCIPAL
+int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
+    std::vector<std::string> opciones = {"Jugar", "Configuracion", "Salir"};
+    int seleccion = 0;
+
+    auto centrarTexto = [](sf::Text& texto) {
+        sf::FloatRect bounds = texto.getLocalBounds();
+        texto.setOrigin(bounds.left + bounds.width / 2.f,
+                        bounds.top + bounds.height / 2.f);
+    };
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close();
+                return 2;
             } else if (event.type == sf::Event::KeyPressed) {
                 if (event.key.code == sf::Keyboard::Up) {
                     seleccion = (seleccion - 1 + opciones.size()) % opciones.size();
@@ -1518,6 +1693,9 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
                     seleccion = (seleccion + 1) % opciones.size();
                 } else if (event.key.code == sf::Keyboard::Enter) {
                     return seleccion;
+                } else if (event.key.code == sf::Keyboard::F11) {
+                    // Alternar pantalla completa con F11
+                    aplicarConfiguracionPantalla(window);
                 }
             } else if (event.type == sf::Event::Resized) {
                 sf::FloatRect visibleArea(0, 0, event.size.width, event.size.height);
@@ -1534,13 +1712,13 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
         unsigned int tamOpciones = size.y / 18;
         float espacio = tamOpciones * 2.f;
 
+
         // Título
         sf::Text titulo("FERRUM BELLUM", font, tamTitulo);
-        titulo.setFillColor(sf::Color(110, 180, 100));
         titulo.setStyle(sf::Text::Bold);
         centrarTexto(titulo);
         titulo.setPosition(centerX, centerY - espacio * 2);
-        
+        titulo.setFillColor(sf::Color(110, 180, 100));
         window.clear(sf::Color::Black);
         window.draw(titulo);
 
@@ -1569,7 +1747,7 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
         window.display();
     }
 
-    return 1;
+    return 2;
 }
 
 // Estructura para almacenar una acción planificada
@@ -2982,19 +3160,20 @@ void bucleDeCombate(
     }
 }
 
+
+// FUNCIÓN MAIN COMPLETA
 int main() {
     const int cellSize = 100;
     const int filas    = 5;
     const int columnas = 5;
 
-    
-    int anchoVentana = columnas * cellSize + 300;  
-    int altoVentana  = filas * cellSize + 100;     
+    // Usar resolución configurada
+    Resolucion resInicial = resoluciones[resolucionSeleccionada];
+    int anchoVentana = std::max(columnas * cellSize + 300, resInicial.ancho);  
+    int altoVentana  = std::max(filas * cellSize + 100, resInicial.alto);     
 
-    sf::RenderWindow window(
-        sf::VideoMode(anchoVentana, altoVentana),
-        "Ferrum Bellum"
-    );
+    sf::RenderWindow window;
+    window.create(sf::VideoMode(anchoVentana, altoVentana), "Ferrum Bellum");
 
     // Cargar fuente
     sf::Font font;
@@ -3005,33 +3184,54 @@ int main() {
 
     mostrarPantallaInicio(window, font);
 
-    while (window.isOpen()) {
+    // Variable para música global
+    sf::Music musicaFondo;
+    bool musicaCargada = false;
 
+    while (window.isOpen()) {
         int opcion = mostrarMenuPrincipal(window, font);
 
-        if (opcion == 0) {  
-            sf::Music musicaFondo;
-            if (!musicaFondo.openFromFile("Sonidos/musica_fondo.ogg")) {
-                std::cout << "No se pudo cargar la música de fondo." << std::endl;
-            } else {
-                musicaFondo.setLoop(true); 
-                musicaFondo.play();
+        if (opcion == 0) {  // Jugar
+            // Cargar música si no está cargada
+            if (!musicaCargada) {
+                if (musicaFondo.openFromFile("Sonidos/musica_fondo.ogg")) {
+                    musicaFondo.setLoop(true);
+                    musicaCargada = true;
+                } else {
+                    std::cout << "No se pudo cargar la música de fondo." << std::endl;
+                }
             }
-            int dificultad = mostrarMenuDificultad(window, font);
+            
+            // Aplicar configuración de audio
+            if (musicaCargada) {
+                musicaFondo.setVolume(volumenMusica);
+                if (volumenMusica > 0) {
+                    musicaFondo.play();
+                } else {
+                    musicaFondo.pause();
+                }
+            }
+
+            int dificultad = -1;  // Dificultad por defecto
+            // Usar dificultad por defecto o mostrar menú
+            dificultad = mostrarMenuDificultad(window, font);
             if (dificultad == -1) {
                 continue;  
             }
+            
+
             // Pilas de tanques
             std::stack<Tanque*> tanquesJugador;
             std::stack<Tanque*> tanquesIA;
 
-            // Cargar texturas
+            // Cargar texturas (igual que antes)
             sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3;
             sf::Texture texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador;
             sf::Texture texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, 
                         texturaExplosionTerreno, texturaExplosionTanque,
                         texturaTanque1DestruidoJugador, texturaTanque2DestruidoJugador, texturaTanque3DestruidoJugador,
                         texturaTanque1DestruidoIA, texturaTanque2DestruidoIA, texturaTanque3DestruidoIA;
+            
             if (!texturaTerreno1.loadFromFile("Imagenes/Terreno/planicie.png") ||
                 !texturaTerreno2.loadFromFile("Imagenes/Terreno/bosque.png") ||
                 !texturaTerreno3.loadFromFile("Imagenes/Terreno/montaniaNevada.png") ||
@@ -3068,27 +3268,19 @@ int main() {
             seleccionarTanquesIA(tanquesIA, tableroPosiciones);
 
             ultimaExplosion = NINGUNA;
-            bucleDeCombate(
-            window, font,
-            tanquesJugador, tanquesIA, tableroPosiciones,
-            filas, columnas, cellSize,
-            texturaTerreno1, texturaTerreno2, texturaTerreno3,
-            texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
-            texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, texturaExplosionTerreno, texturaExplosionTanque, texturaTanque1DestruidoJugador,
-            texturaTanque2DestruidoJugador, texturaTanque3DestruidoJugador, texturaTanque1DestruidoIA,
-            texturaTanque2DestruidoIA, texturaTanque3DestruidoIA,
-            dificultad 
-            );
+            
 
-            /*
             bucleDeCombate(
-            window, font,
-            tanquesJugador, tanquesIA, tableroPosiciones,
-            filas, columnas, cellSize,
-            texturaTerreno1, texturaTerreno2, texturaTerreno3,
-            texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
-            texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, texturaExplosionTerreno, texturaExplosionTanque
-            );*/
+                window, font,
+                tanquesJugador, tanquesIA, tableroPosiciones,
+                filas, columnas, cellSize,
+                texturaTerreno1, texturaTerreno2, texturaTerreno3,
+                texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador,
+                texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, texturaExplosionTerreno, texturaExplosionTanque, 
+                texturaTanque1DestruidoJugador, texturaTanque2DestruidoJugador, texturaTanque3DestruidoJugador, 
+                texturaTanque1DestruidoIA, texturaTanque2DestruidoIA, texturaTanque3DestruidoIA,
+                dificultad 
+            );
 
             // Liberar memoria de tanques
             while (!tanquesJugador.empty()) {
@@ -3100,7 +3292,26 @@ int main() {
                 tanquesIA.pop();
             }
         }
-        else if (opcion == 1) {  
+        else if (opcion == 1) {  // Configuración
+            int resultadoConfig = mostrarMenuConfiguracion(window, font);
+            
+            // Si se cambió la resolución o pantalla completa, aplicar cambios
+            static int resolucionAnterior = resolucionSeleccionada;
+            
+            if (resolucionAnterior != resolucionSeleccionada) {
+                aplicarConfiguracionPantalla(window);
+                resolucionAnterior = resolucionSeleccionada;
+            }
+            
+            // Aplicar cambios de volumen si la música está sonando
+            if (musicaCargada && musicaFondo.getStatus() == sf::Music::Playing) {
+                musicaFondo.setVolume(volumenMusica);
+                if (volumenMusica == 0) {
+                    musicaFondo.pause();
+                }
+            }
+        }
+        else if (opcion == 2) {  // Salir
             window.close();
         }
     }
