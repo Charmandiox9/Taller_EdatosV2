@@ -1513,6 +1513,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
     sf::Texture& texturaExplosionTerreno,
     sf::Texture& texturaExplosionTanque
 ) {
+    // Convertir stack a vector para mejor manejo
     std::vector<Tanque*> tanquesJugador;
     {
         std::stack<Tanque*> copia = tanquesJugadorStack;
@@ -1528,8 +1529,36 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
         return AccionPlanificada();
     }
 
-    // Encuentra el primer tanque vivo
+    enum EstadoMenu { SELECCIONAR_TANQUE, SELECCIONAR_ACCION, SELECCIONAR_COORDENADAS, CONFIRMAR_SALIDA };
+    EstadoMenu estadoActual = SELECCIONAR_TANQUE;
+    
     int indiceTanque = 0;
+    std::string accionSeleccionada = "Moverse";
+    int coordX = 0, coordY = 0;
+    bool editandoX = true;
+    bool errorCoordinadas = false;
+    int opcionSalida = 1; // 0=Sí, 1=No
+    std::string mensajeError = "";
+
+    // Constantes base que se ajustarán dinámicamente
+    const int OFFSET_TABLERO_X = 50;
+    const int OFFSET_TABLERO_Y = 90;
+    const int MENU_WIDTH = 300;
+    const int MENU_HEIGHT = 400;
+    const int PADDING = 15;
+    const int PANEL_HEIGHT = 50;
+    
+    // Colores
+    const sf::Color COLOR_FONDO_MENU(25, 25, 35, 240);
+    const sf::Color COLOR_BORDE_MENU(100, 150, 255);
+    const sf::Color COLOR_TITULO(255, 215, 0);
+    const sf::Color COLOR_SELECCIONADO(0, 255, 100);
+    const sf::Color COLOR_NORMAL(255, 255, 255);
+    const sf::Color COLOR_ERROR(255, 100, 100);
+    const sf::Color COLOR_PREVIEW_MOVER(0, 255, 0, 120);
+    const sf::Color COLOR_PREVIEW_ATACAR(255, 0, 0, 120);
+
+    // Encontrar primer tanque vivo
     for (size_t i = 0; i < tanquesJugador.size(); ++i) {
         if (tanquesJugador[i]->getVida() > 0) {
             indiceTanque = i;
@@ -1537,32 +1566,32 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
         }
     }
 
-    int paso             = 0;
-    std::string accion   = "Moverse";
-    int coordX = 0, coordY = 0;
-    bool coordYselect    = true;
-    bool turnoCompletado = false;
-    bool errorCoord      = false;
-    int opcionConfirm    = 0;
-
-    const int menuX = columnas * cellSize + 70;
-    const int menuY = 100;
-    const int offsetTableroX = 50;
-    const int offsetTableroY = 90;
-    const int menuWidth = 230;
-    const int menuHeight = 160;
-    const int menuPadding = 10;
-
+    // Elementos gráficos
     sf::RectangleShape previewRect({float(cellSize - 2), float(cellSize - 2)});
-    previewRect.setOutlineThickness(1);
-    previewRect.setOutlineColor(sf::Color::Black);
+    previewRect.setOutlineThickness(2);
+    previewRect.setOutlineColor(sf::Color::White);
 
-    sf::RectangleShape selectorRect({float(cellSize), float(cellSize)});
-    selectorRect.setFillColor(sf::Color::Transparent);
-    selectorRect.setOutlineThickness(3);
-    selectorRect.setOutlineColor(sf::Color::Blue);
+    sf::RectangleShape selectorTanque({float(cellSize), float(cellSize)});
+    selectorTanque.setFillColor(sf::Color::Transparent);
+    selectorTanque.setOutlineThickness(4);
+    selectorTanque.setOutlineColor(COLOR_SELECCIONADO);
 
-    while (window.isOpen() && !turnoCompletado) {
+    // Bucle principal mejorado
+    while (window.isOpen()) {
+        // Calcular posiciones dinámicamente basadas en el tamaño actual de la ventana
+        sf::Vector2u windowSize = window.getSize();
+        int tableroWidth = columnas * cellSize;
+        int tableroHeight = filas * cellSize;
+        
+        // Calcular posición del menú dinámicamente
+        int MENU_X = tableroWidth + OFFSET_TABLERO_X + 30;
+        int MENU_Y = 100;
+        
+        // Asegurar que el menú no se salga de la pantalla
+        if (MENU_X + MENU_WIDTH > windowSize.x) {
+            MENU_X = windowSize.x - MENU_WIDTH - 20;
+        }
+
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
@@ -1571,239 +1600,426 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
             }
             
             if (event.type == sf::Event::KeyPressed) {
+                mensajeError = ""; // Limpiar mensajes de error
+                errorCoordinadas = false;
+
+                // Manejo de Escape
                 if (event.key.code == sf::Keyboard::Escape) {
-                    if (paso < 2) {
-                        paso = 3;
-                        opcionConfirm = 0;
+                    if (estadoActual == SELECCIONAR_TANQUE) {
+                        estadoActual = CONFIRMAR_SALIDA;
                     } else {
-                        paso = 1;
-                        coordX = coordY = 0;
-                        coordYselect = true;
-                        errorCoord = false;
-                    }
-                    continue;
-                }
-
-                if (paso == 3) {
-                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
-                        opcionConfirm = 1 - opcionConfirm;
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        if (opcionConfirm == 0) return AccionPlanificada();
-                        paso = 0;
-                    }
-                    continue;
-                }
-
-                if (paso == 0) {
-                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
-                        int direccion = (event.key.code == sf::Keyboard::Up) ? -1 : 1;
-                        int intentos = 0;
-                        do {
-                            indiceTanque = (indiceTanque + direccion + tanquesJugador.size()) % tanquesJugador.size();
-                            intentos++;
-                        } while (tanquesJugador[indiceTanque]->getVida() <= 0 && intentos < tanquesJugador.size());
-                    } else if (event.key.code == sf::Keyboard::Enter) {
-                        if (tanquesJugador[indiceTanque]->getVida() > 0) {
-                            paso = 1;
-                            errorCoord = false;
+                        estadoActual = static_cast<EstadoMenu>(estadoActual - 1);
+                        if (estadoActual == SELECCIONAR_COORDENADAS) {
+                            coordX = coordY = 0;
+                            editandoX = true;
                         }
                     }
+                    continue;
                 }
 
-                else if (paso == 1) {
-                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down)
-                        accion = (accion == "Moverse") ? "Atacar" : "Moverse";
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        paso = 2; coordX = coordY = 0; coordYselect = false; errorCoord = false;
+                // Manejo por estados
+                switch (estadoActual) {
+                    case SELECCIONAR_TANQUE: {
+                        if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
+                            int direccion = (event.key.code == sf::Keyboard::Up) ? -1 : 1;
+                            int intentos = 0;
+                            do {
+                                indiceTanque = (indiceTanque + direccion + tanquesJugador.size()) % tanquesJugador.size();
+                                intentos++;
+                            } while (tanquesJugador[indiceTanque]->getVida() <= 0 && intentos < tanquesJugador.size());
+                        }
+                        else if (event.key.code == sf::Keyboard::Enter) {
+                            if (tanquesJugador[indiceTanque]->getVida() > 0) {
+                                estadoActual = SELECCIONAR_ACCION;
+                            } else {
+                                mensajeError = "Este tanque está destruido";
+                            }
+                        }
+                        break;
                     }
-                }
-                else if (paso == 2) {
-                    int digit = -1;
-                    if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9)
-                        digit = event.key.code - sf::Keyboard::Num0;
-                    else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9)
-                        digit = event.key.code - sf::Keyboard::Numpad0;
-                    if (digit >= 0 && digit < 5) {
-                        if (!coordYselect && coordX == 0) coordX = digit;
-                        else if (coordYselect && coordY == 0) coordY = digit;
+
+                    case SELECCIONAR_ACCION: {
+                        if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
+                            accionSeleccionada = (accionSeleccionada == "Moverse") ? "Atacar" : "Moverse";
+                        }
+                        else if (event.key.code == sf::Keyboard::Enter) {
+                            estadoActual = SELECCIONAR_COORDENADAS;
+                            coordX = coordY = 0;
+                            editandoX = true;
+                        }
+                        break;
                     }
-                    else if (event.key.code == sf::Keyboard::Space ||
-                             event.key.code == sf::Keyboard::Left ||
-                             event.key.code == sf::Keyboard::Right) {
-                        coordYselect = !coordYselect;
+
+                    case SELECCIONAR_COORDENADAS: {
+                        // Entrada numérica
+                        int digito = -1;
+                        if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9) {
+                            digito = event.key.code - sf::Keyboard::Num0;
+                        }
+                        else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9) {
+                            digito = event.key.code - sf::Keyboard::Numpad0;
+                        }
+
+                        if (digito >= 0) {
+                            if (editandoX) {
+                                int nuevoX = coordX * 10 + digito;
+                                if (nuevoX < columnas) coordX = nuevoX;
+                            } else {
+                                int nuevoY = coordY * 10 + digito;
+                                if (nuevoY < filas) coordY = nuevoY;
+                            }
+                        }
+                        // Navegación entre coordenadas
+                        else if (event.key.code == sf::Keyboard::Tab || 
+                                event.key.code == sf::Keyboard::Left || 
+                                event.key.code == sf::Keyboard::Right) {
+                            editandoX = !editandoX;
+                        }
+                        // Borrar
+                        else if (event.key.code == sf::Keyboard::BackSpace) {
+                            if (editandoX) coordX /= 10;
+                            else coordY /= 10;
+                        }
+                        // Confirmar
+                        else if (event.key.code == sf::Keyboard::Enter) {
+                            if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
+                                Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
+                                std::cout << "Jugador planifica " << accionSeleccionada 
+                                         << " en (" << coordX << "," << coordY << ")" << std::endl;
+                                
+                                return AccionPlanificada(tanqueSeleccionado, accionSeleccionada, coordX, coordY);
+                            } else {
+                                errorCoordinadas = true;
+                                mensajeError = "Coordenadas fuera del tablero";
+                            }
+                        }
+                        break;
                     }
-                    else if (event.key.code == sf::Keyboard::BackSpace) {
-                        if (coordYselect) coordY = 0; else coordX = 0;
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
-                            Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
-                            std::cout << "Jugador planifica " << accion << " en (" << coordX << "," << coordY << ")" << std::endl;
-                            
-                            // RETORNAR la acción en lugar de ejecutarla
-                            return AccionPlanificada(tanqueSeleccionado, accion, coordX, coordY);
-                        } else errorCoord = true;
+
+                    case CONFIRMAR_SALIDA: {
+                        if (event.key.code == sf::Keyboard::Left || event.key.code == sf::Keyboard::Right ||
+                            event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
+                            opcionSalida = 1 - opcionSalida;
+                        }
+                        else if (event.key.code == sf::Keyboard::Enter) {
+                            if (opcionSalida == 0) {
+                                return AccionPlanificada(); // Salir
+                            } else {
+                                estadoActual = SELECCIONAR_TANQUE; // Continuar
+                            }
+                        }
+                        break;
                     }
                 }
             }
         }
 
-        window.clear();
+        // ===== RENDERIZADO =====
+        window.clear(sf::Color(20, 20, 30));
 
-        {
-            sf::RectangleShape infoPanel({float(window.getSize().x), 50.f});
-            infoPanel.setPosition(0, 0);
-            infoPanel.setFillColor({30,30,30,220});
-            infoPanel.setOutlineColor(sf::Color::White);
-            infoPanel.setOutlineThickness(2);
-            window.draw(infoPanel);
+        // Panel de información de tanques mejorado - Ajustado dinámicamente
+        sf::RectangleShape panelInfo({float(windowSize.x), float(PANEL_HEIGHT)});
+        panelInfo.setPosition(0, 0);
+        panelInfo.setFillColor(sf::Color(40, 40, 50, 200));
+        panelInfo.setOutlineColor(COLOR_BORDE_MENU);
+        panelInfo.setOutlineThickness(2);
+        window.draw(panelInfo);
 
-            for (size_t i = 0; i < tanquesJugador.size(); ++i) {
-                int dmg = tanquesJugador[i]->getDanio();
-                std::string tipo = (dmg == 100 ? "Ligero" : dmg == 150 ? "Mediano" : "Pesado");
-                sf::Text info("Tanque " + std::to_string(i+1) +
-                              " (" + tipo + ") Vida: " + std::to_string(tanquesJugador[i]->getVida()),
-                              font, 16);
-                info.setPosition(20 + i*250, 15);
-                if (tanquesJugador[i]->getVida() <= 0)
-                    info.setFillColor(sf::Color(128, 128, 128));  // Gris para tanque destruido
-                else if (i == indiceTanque)
-                    info.setFillColor(sf::Color::Yellow);         // Seleccionado
-                else
-                    info.setFillColor(sf::Color::White);
+        // Título del panel
+        sf::Text tituloPanel("ESTADO TANQUES: ", font, 16);
+        tituloPanel.setFillColor(COLOR_TITULO);
+        tituloPanel.setPosition(20, 15);
+        tituloPanel.setStyle(sf::Text::Bold);
+        window.draw(tituloPanel);
 
-                window.draw(info);
+        // Información de tanques dispuesta horizontalmente
+        float posicionX = 20 + tituloPanel.getLocalBounds().width + 10;
+        for (size_t i = 0; i < tanquesJugador.size(); ++i) {
+            int damage = tanquesJugador[i]->getDanio();
+            std::string tipo = (damage == 100 ? "L" : damage == 150 ? "M" : "P");
+            
+            std::string textoTanque;
+            if (tanquesJugador[i]->getVida() <= 0) {
+                textoTanque = "T" + std::to_string(i+1) + tipo + ":DEST";
+            } else {
+                textoTanque = "T" + std::to_string(i+1) + tipo + ":" + std::to_string(tanquesJugador[i]->getVida()) + "HP";
+            }
+            
+            sf::Text infoTanque(textoTanque, font, 14);
+            infoTanque.setPosition(posicionX, 15);
+            
+            if (tanquesJugador[i]->getVida() <= 0) {
+                infoTanque.setFillColor(sf::Color(100, 100, 100));
+            } else if (i == indiceTanque && estadoActual == SELECCIONAR_TANQUE) {
+                infoTanque.setFillColor(COLOR_SELECCIONADO);
+                infoTanque.setStyle(sf::Text::Bold);
+            } else {
+                infoTanque.setFillColor(COLOR_NORMAL);
+            }
+            
+            window.draw(infoTanque);
+            
+            // Calcular posición para el siguiente tanque
+            posicionX += infoTanque.getLocalBounds().width + 20; // Espaciado entre tanques
+            
+            // Si no hay suficiente espacio en la línea, continuar en la siguiente
+            if (posicionX + 120 > windowSize.x) { // 120 es un estimado del ancho mínimo necesario
+                posicionX = 20;
+                // Aquí podrías ajustar la posición Y si quieres una segunda línea
             }
         }
 
+        // Dibujar tablero - Centrado dinámicamente
+        int tableroStartX = OFFSET_TABLERO_X;
+        int tableroStartY = OFFSET_TABLERO_Y;
+        
+        // Si la ventana es muy ancha, centrar el tablero horizontalmente
+        if (windowSize.x > tableroWidth + MENU_WIDTH + 100) {
+            tableroStartX = (windowSize.x - tableroWidth - MENU_WIDTH) / 2;
+            MENU_X = tableroStartX + tableroWidth + 30;
+        }
+
+        // Guardar las constantes originales y usar las nuevas posiciones
+        const int ORIGINAL_OFFSET_X = 50;
+        const int ORIGINAL_OFFSET_Y = 90;
+        
+        // Temporalmente modificar las constantes globales si existen, o pasar como parámetros
         desplegarTablero(window, font, filas, columnas, cellSize, tablero,
                          texturaTerreno1, texturaTerreno2, texturaTerreno3,
                          texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
                          texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
                          texturaExplosionTerreno, texturaExplosionTanque);
 
-        {
-            Tanque* sel = tanquesJugador[indiceTanque];
+        // Selector de tanque - Ajustado a la nueva posición del tablero
+        if (estadoActual == SELECCIONAR_TANQUE) {
+            Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
             NodoSistema* nodo = tablero;
             while (nodo) {
-                if (nodo->getTanque() == sel) {
+                if (nodo->getTanque() == tanqueSeleccionado) {
                     int selX = nodo->getPosX();
                     int selY = nodo->getPosY();
-                    selectorRect.setPosition(
-                        float(selX*cellSize + offsetTableroX),
-                        float(selY*cellSize + offsetTableroY)
+                    selectorTanque.setPosition(
+                        float(selX * cellSize + tableroStartX),
+                        float(selY * cellSize + tableroStartY)
                     );
-                    window.draw(selectorRect);
+                    window.draw(selectorTanque);
                     break;
                 }
                 nodo = nodo->getSiguiente();
             }
         }
 
-        // Preview movimiento/disparo
-        if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
+        // Preview de acción - Ajustado a la nueva posición del tablero
+        if (estadoActual == SELECCIONAR_COORDENADAS && 
+            coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
             previewRect.setPosition(
-                float(coordX*cellSize + offsetTableroX + 1),
-                float(coordY*cellSize + offsetTableroY + 1)
+                float(coordX * cellSize + tableroStartX + 1),
+                float(coordY * cellSize + tableroStartY + 1)
             );
             previewRect.setFillColor(
-                (accion=="Moverse") ? sf::Color(0,255,0,100) : sf::Color(255,0,0,100)
+                (accionSeleccionada == "Moverse") ? COLOR_PREVIEW_MOVER : COLOR_PREVIEW_ATACAR
             );
             window.draw(previewRect);
         }
 
-        // Menú de confirmación ESC
-        if (paso == 3) {
-            sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
-            bg.setPosition(menuX-menuPadding, menuY-menuPadding);
-            bg.setFillColor({50,50,50,200});
-            bg.setOutlineColor(sf::Color::White);
-            bg.setOutlineThickness(2);
-            window.draw(bg);
+        // ===== MENÚ PRINCIPAL MEJORADO - Posición dinámica =====
+        sf::RectangleShape fondoMenu({float(MENU_WIDTH), float(MENU_HEIGHT)});
+        fondoMenu.setPosition(MENU_X - PADDING, MENU_Y - PADDING);
+        fondoMenu.setFillColor(COLOR_FONDO_MENU);
+        fondoMenu.setOutlineColor(COLOR_BORDE_MENU);
+        fondoMenu.setOutlineThickness(3);
+        window.draw(fondoMenu);
 
-            sf::Text titulo("AVISO DE EMERGENCIA SOLDADO", font, 20);
-            titulo.setFillColor(sf::Color::Red);
-            titulo.setPosition(menuX, menuY);
-            window.draw(titulo);
+        // Contenido del menú según el estado
+        sf::Text contenidoMenu;
+        contenidoMenu.setFont(font);
+        contenidoMenu.setPosition(MENU_X, MENU_Y);
 
-            sf::Text pregunta("¿DESEAS RENDIRTE ANTE EL ENEMIGO?", font, 18);
-            pregunta.setFillColor(sf::Color::White);
-            pregunta.setPosition(menuX, menuY + 30);
-            window.draw(pregunta);
+        switch (estadoActual) {
+            case SELECCIONAR_TANQUE: {
+                sf::Text titulo(" SELECCIONAR TANQUE ", font, 20);
+                titulo.setFillColor(COLOR_TITULO);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(MENU_X, MENU_Y);
+                window.draw(titulo);
 
-            sf::Text si("SI", font, 22), no("NO", font, 22);
-            si.setPosition(menuX, menuY + 70);
-            no.setPosition(menuX, menuY + 100);
-            if (opcionConfirm == 0) si.setStyle(sf::Text::Underlined | sf::Text::Bold);
-            else                    no.setStyle(sf::Text::Underlined | sf::Text::Bold);
-            si.setFillColor(sf::Color::White);
-            no.setFillColor(sf::Color::White);
-            window.draw(si);
-            window.draw(no);
-        }
-        else {
-            // Menú normal
-            sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
-            bg.setPosition(menuX-menuPadding, menuY-menuPadding);
-            bg.setFillColor({50,50,50,200});
-            bg.setOutlineColor(sf::Color::White);
-            bg.setOutlineThickness(2);
-            window.draw(bg);
-
-            sf::Text menuTxt;
-            menuTxt.setFont(font);
-            menuTxt.setCharacterSize(20);
-            menuTxt.setFillColor(sf::Color::White);
-            menuTxt.setPosition(menuX, menuY);
-
-            if (paso == 0) {
-                menuTxt.setString(
-                    "SELECCIONA TANQUE:\n"
-                    "(ARRIBA/ABAJO)\n"
-                    "ENTER=OK  ESC=Salir"
-                );
-            } else if (paso == 1) {
-                menuTxt.setString(
-                    std::string((accion=="Moverse") ? "> Moverse\n" : "  Moverse\n") +
-                    std::string((accion=="Atacar")  ? "> Atacar\n"  : "  Atacar\n") +
-                    "\nENTER=OK  ESC=Atras"
-                );
-            } else {
-                menuTxt.setString(
-                    "Ingresa coordenadas:\n" +
-                    std::string("X: " + std::to_string(coordX) + "  Y: " + std::to_string(coordY)) +
-                    "\nSPACE/LEFT/RIGHT alternar\nENTER=OK  ESC=Atras"
-                );
+                contenidoMenu.setCharacterSize(16);
+                contenidoMenu.setFillColor(COLOR_NORMAL);
+                std::string texto = "\n\n";
+                texto += "Tanque Actual: #" + std::to_string(indiceTanque + 1) + "\n";
+                std::string tipoTanque = (tanquesJugador[indiceTanque]->getDanio() == 100 ? "Ligero" : 
+                                         tanquesJugador[indiceTanque]->getDanio() == 150 ? "Mediano" : "Pesado");
+                texto += "Tipo: " + tipoTanque + "\n";
+                texto += "Vida: " + std::to_string(tanquesJugador[indiceTanque]->getVida()) + " HP\n\n";
+                texto += " CONTROLES \n";
+                texto += " Arriba/Abajo  : Cambiar tanque  \n";
+                texto += " ENTER: Seleccionar     \n";
+                texto += " ESC  : Salir del juego \n";
+                
+                if (!mensajeError.empty()) {
+                    texto += "\n⚠ " + mensajeError;
+                }
+                
+                contenidoMenu.setString(texto);
+                break;
             }
-            window.draw(menuTxt);
-        }
 
-        // Sección explosión
-        if (ultimaExplosion != NINGUNA) {
-            sf::Sprite spr; std::string msg;
-            if (ultimaExplosion == TERRENO) {
-                spr.setTexture(texturaExplosionTerreno);
-                msg = "Disparo acerto al terreno";
-            } else {
-                spr.setTexture(texturaExplosionTanque);
-                msg = "Disparo acerto a un tanque";
+            case SELECCIONAR_ACCION: {
+                sf::Text titulo(" SELECCIONAR ACCIÓN ", font, 20);
+                titulo.setFillColor(COLOR_TITULO);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(MENU_X, MENU_Y);
+                window.draw(titulo);
+
+                contenidoMenu.setCharacterSize(18);
+                contenidoMenu.setPosition(MENU_X, MENU_Y + 40);
+                
+                std::string textoMover = (accionSeleccionada == "Moverse") ? "- MOVERSE" : "   Moverse";
+                std::string textoAtacar = (accionSeleccionada == "Atacar") ? "- ATACAR" : "   Atacar";
+                
+                sf::Text opcionMover(textoMover, font, 18);
+                sf::Text opcionAtacar(textoAtacar, font, 18);
+                
+                opcionMover.setPosition(MENU_X + 20, MENU_Y + 60);
+                opcionAtacar.setPosition(MENU_X + 20, MENU_Y + 90);
+                
+                opcionMover.setFillColor((accionSeleccionada == "Moverse") ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                opcionAtacar.setFillColor((accionSeleccionada == "Atacar") ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                
+                window.draw(opcionMover);
+                window.draw(opcionAtacar);
+
+                sf::Text controles(" CONTROLES \n Arriba/Abajo  : Cambiar acción  \n ENTER: Confirmar       \n ESC  : Volver atrás    \n", font, 14);
+                controles.setFillColor(sf::Color(200, 200, 200));
+                controles.setPosition(MENU_X, MENU_Y + 140);
+                window.draw(controles);
+                break;
             }
-            float exX = 475, exY = menuY + menuHeight + 50;
-            spr.setScale(1.5f, 1.5f);
-            spr.setPosition(exX, exY);
-            window.draw(spr);
 
-            sf::Text te(msg, font, 20);
-            te.setFillColor(sf::Color::White);
-            te.setPosition(exX + 100, exY + 80);
-            window.draw(te);
+            case SELECCIONAR_COORDENADAS: {
+                sf::Text titulo(" SELECCIONAR COORDENADAS ", font, 18);
+                titulo.setFillColor(COLOR_TITULO);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(MENU_X, MENU_Y);
+                window.draw(titulo);
+
+                // Acción seleccionada
+                sf::Text accionTxt("Acción: " + accionSeleccionada, font, 16);
+                accionTxt.setFillColor((accionSeleccionada == "Moverse") ? sf::Color::Green : sf::Color::Red);
+                accionTxt.setPosition(MENU_X, MENU_Y + 35);
+                accionTxt.setStyle(sf::Text::Bold);
+                window.draw(accionTxt);
+
+                // Coordenadas
+                sf::Text coordLabel("Coordenadas:", font, 16);
+                coordLabel.setFillColor(COLOR_NORMAL);
+                coordLabel.setPosition(MENU_X, MENU_Y + 70);
+                window.draw(coordLabel);
+
+                // Campo X
+                sf::RectangleShape campoX({60, 30});
+                campoX.setPosition(MENU_X + 20, MENU_Y + 100);
+                campoX.setFillColor(editandoX ? sf::Color(100, 150, 255, 100) : sf::Color(50, 50, 50, 200));
+                campoX.setOutlineColor(editandoX ? COLOR_SELECCIONADO : sf::Color(128, 128, 128));
+                campoX.setOutlineThickness(2);
+                window.draw(campoX);
+
+                sf::Text labelX("X:", font, 14);
+                labelX.setPosition(MENU_X, MENU_Y + 108);
+                labelX.setFillColor(editandoX ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                window.draw(labelX);
+
+                sf::Text valorX(std::to_string(coordX), font, 16);
+                valorX.setPosition(MENU_X + 35, MENU_Y + 105);
+                valorX.setFillColor(COLOR_NORMAL);
+                valorX.setStyle(sf::Text::Bold);
+                window.draw(valorX);
+
+                // Campo Y
+                sf::RectangleShape campoY({60, 30});
+                campoY.setPosition(MENU_X + 120, MENU_Y + 100);
+                campoY.setFillColor(!editandoX ? sf::Color(100, 150, 255, 100) : sf::Color(50, 50, 50, 200));
+                campoY.setOutlineColor(!editandoX ? COLOR_SELECCIONADO : sf::Color(128, 128, 128));
+                campoY.setOutlineThickness(2);
+                window.draw(campoY);
+
+                sf::Text labelY("Y:", font, 14);
+                labelY.setPosition(MENU_X + 100, MENU_Y + 108);
+                labelY.setFillColor(!editandoX ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                window.draw(labelY);
+
+                sf::Text valorY(std::to_string(coordY), font, 16);
+                valorY.setPosition(MENU_X + 135, MENU_Y + 105);
+                valorY.setFillColor(COLOR_NORMAL);
+                valorY.setStyle(sf::Text::Bold);
+                window.draw(valorY);
+
+                // Controles
+                sf::Text controles(" CONTROLES \n 0-4  : Ingresar número\n TAB/Derecha/Izquierda: Cambiar campo\n BACKS: Borrar dígito  \n ENTER: Ejecutar       \n ESC  : Volver atrás   \n", font, 12);
+                controles.setFillColor(sf::Color(200, 200, 200));
+                controles.setPosition(MENU_X, MENU_Y + 150);
+                window.draw(controles);
+
+                // Mensaje de error
+                if (errorCoordinadas || !mensajeError.empty()) {
+                    sf::Text error("⚠ " + mensajeError, font, 14);
+                    error.setFillColor(COLOR_ERROR);
+                    error.setStyle(sf::Text::Bold);
+                    error.setPosition(MENU_X, MENU_Y + 280);
+                    window.draw(error);
+                }
+                break;
+            }
+
+            case CONFIRMAR_SALIDA: {
+                sf::Text titulo(" CONFIRMAR SALIDA ", font, 20);
+                titulo.setFillColor(sf::Color::Red);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(MENU_X, MENU_Y);
+                window.draw(titulo);
+
+                sf::Text pregunta("¿Realmente deseas\nrendirte?", font, 18);
+                pregunta.setFillColor(COLOR_NORMAL);
+                pregunta.setPosition(MENU_X, MENU_Y + 50);
+                window.draw(pregunta);
+
+                sf::Text opcionSi("RENDIRSE", font, 16);
+                sf::Text opcionNo("CONTINUAR", font, 16);
+                
+                opcionSi.setPosition(MENU_X + 20, MENU_Y + 120);
+                opcionNo.setPosition(MENU_X + 20, MENU_Y + 150);
+                
+                if (opcionSalida == 0) {
+                    opcionSi.setFillColor(sf::Color::Red);
+                    opcionSi.setString("- RENDIRSE");
+                    opcionSi.setStyle(sf::Text::Bold);
+                    opcionNo.setFillColor(COLOR_NORMAL);
+                    opcionNo.setString("  CONTINUAR");
+                } else {
+                    opcionSi.setFillColor(COLOR_NORMAL);
+                    opcionSi.setString("  RENDIRSE");
+                    opcionNo.setFillColor(COLOR_SELECCIONADO);
+                    opcionNo.setString("- CONTINUAR");
+                    opcionNo.setStyle(sf::Text::Bold);
+                }
+                
+                window.draw(opcionSi);
+                window.draw(opcionNo);
+
+                sf::Text controles("Arriba/Abajo o Izquierda/Derecha: Seleccionar\nENTER: Confirmar", font, 14);
+                controles.setFillColor(sf::Color(200, 200, 200));
+                controles.setPosition(MENU_X, MENU_Y + 200);
+                window.draw(controles);
+                break;
+            }
         }
+
+        window.draw(contenidoMenu);
 
         window.display();
     }
     
-    return AccionPlanificada(); // Si sale del bucle sin completar
+    return AccionPlanificada(); // Fallback si sale del bucle sin completar
 }
 
 // Función para ejecutar las acciones simultáneamente
