@@ -1089,7 +1089,6 @@ bool mostrarMenuSeleccionTanquesJugador(
     return false;
 }
 
-
 // Función que selecciona tanques para la IA
 void seleccionarTanquesIA(
     std::stack<Tanque*>& tanquesIA,
@@ -1139,7 +1138,6 @@ void seleccionarTanquesIA(
         nodosDisponibles.erase(nodosDisponibles.begin() + indiceNodo);
     }
 }
-
 
 // Función que despliega el tablero en la ventana
 void desplegarTablero(
@@ -1446,8 +1444,6 @@ int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
     return -2;
 }
 
-
-
 void mostrarPantallaInicio(sf::RenderWindow& window, sf::Font& font) {
     sf::Text titulo("FERRUM BELLUM", font);
     titulo.setFillColor(sf::Color(110, 180, 100));
@@ -1509,7 +1505,6 @@ void mostrarPantallaInicio(sf::RenderWindow& window, sf::Font& font) {
         window.display();
     }
 }
-
 
 // Función para aplicar configuración de pantalla
 void aplicarConfiguracionPantalla(sf::RenderWindow& window) {
@@ -1666,8 +1661,6 @@ int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
     }
     return -1;
 }
-
-
 
 // MENÚ PRINCIPAL
 int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
@@ -1862,7 +1855,6 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
     std::reverse(tanquesJugador.begin(), tanquesJugador.end());
     if (tanquesJugador.empty()) return AccionPlanificada();
 
-    // Encuentra el primer tanque vivo
     int indiceTanque = 0;
     for (size_t i = 0; i < tanquesJugador.size(); ++i) {
         if (tanquesJugador[i]->getVida() > 0) {
@@ -1871,32 +1863,86 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
         }
     }
 
-    int paso             = 0;
-    std::string accion   = "Moverse";
+    int paso = 0;
+    std::string accion = "Moverse";
     int coordX = 0, coordY = 0;
-    bool coordYselect    = true;
+    bool coordYselect = true;
     bool turnoCompletado = false;
-    bool errorCoord      = false;
-    int opcionConfirm    = 0;
+    bool errorCoord = false;
+    int opcionConfirm = 0;
 
-    const int menuX = columnas * cellSize + 70;
-    const int menuY = 100;
+    const int MENU_MIN_WIDTH = 220;
+    const int MENU_MAX_WIDTH = 400;
+    const int MENU_MIN_HEIGHT = 280;
+    const int MENU_MAX_HEIGHT = 500;
+    const int PADDING = 15;
+    const int PANEL_HEIGHT = 50;
+    const int MIN_MARGIN = 10;
+    
+    const sf::Color COLOR_FONDO_MENU(25, 25, 35, 240);
+    const sf::Color COLOR_BORDE_MENU(100, 150, 255);
+    const sf::Color COLOR_TITULO(255, 215, 0);
+    const sf::Color COLOR_SELECCIONADO(0, 255, 100);
+    const sf::Color COLOR_NORMAL(255, 255, 255);
+    const sf::Color COLOR_ERROR(255, 100, 100);
+    const sf::Color COLOR_PREVIEW_MOVER(0, 255, 0, 120);
+    const sf::Color COLOR_PREVIEW_ATACAR(255, 0, 0, 120);
+
     const int offsetTableroX = 50;
     const int offsetTableroY = 90;
-    const int menuWidth = 230;
-    const int menuHeight = 160;
-    const int menuPadding = 10;
 
     sf::RectangleShape previewRect({float(cellSize - 2), float(cellSize - 2)});
-    previewRect.setOutlineThickness(1);
-    previewRect.setOutlineColor(sf::Color::Black);
+    previewRect.setOutlineThickness(2);
+    previewRect.setOutlineColor(sf::Color::White);
 
     sf::RectangleShape selectorRect({float(cellSize), float(cellSize)});
     selectorRect.setFillColor(sf::Color::Transparent);
-    selectorRect.setOutlineThickness(3);
-    selectorRect.setOutlineColor(sf::Color::Blue);
+    selectorRect.setOutlineThickness(4);
+    selectorRect.setOutlineColor(COLOR_SELECCIONADO);
 
     while (window.isOpen() && !turnoCompletado) {
+        sf::Vector2u windowSize = window.getSize();
+        int tableroWidth = columnas * cellSize;
+        int tableroHeight = filas * cellSize;
+        int tableroTotalWidth = tableroWidth + offsetTableroX * 2;
+        
+        int menuWidth = std::min(MENU_MAX_WIDTH, std::max(MENU_MIN_WIDTH, 
+                                static_cast<int>(windowSize.x * 0.22f)));
+        int menuHeight = std::min(MENU_MAX_HEIGHT, std::max(MENU_MIN_HEIGHT, 
+                                 static_cast<int>(windowSize.y * 0.55f)));
+        
+        int menuX, menuY;
+        bool menuOverlay = false;
+        
+        if (windowSize.x >= tableroTotalWidth + menuWidth + MIN_MARGIN * 3) {
+            menuX = tableroTotalWidth + MIN_MARGIN;
+        } else if (windowSize.x >= menuWidth + MIN_MARGIN * 2) {
+            if (windowSize.x >= tableroTotalWidth + menuWidth * 0.7f) {
+                menuX = tableroTotalWidth + MIN_MARGIN / 2;
+            } else {
+                menuX = windowSize.x - menuWidth - MIN_MARGIN;
+                menuOverlay = true;
+            }
+        } else {
+            menuWidth = windowSize.x - MIN_MARGIN * 2;
+            menuX = MIN_MARGIN;
+            menuOverlay = true;
+        }
+        
+        if (windowSize.y > menuHeight + PANEL_HEIGHT + MIN_MARGIN * 4) {
+            menuY = PANEL_HEIGHT + MIN_MARGIN * 3;
+        } else if (windowSize.y > menuHeight + PANEL_HEIGHT + MIN_MARGIN) {
+            menuY = PANEL_HEIGHT + MIN_MARGIN * 2;
+        } else {
+            menuY = PANEL_HEIGHT + MIN_MARGIN;
+            if (menuY + menuHeight > windowSize.y) {
+                menuHeight = windowSize.y - menuY - MIN_MARGIN;
+            }
+        }
+        
+        if (menuX < MIN_MARGIN) menuX = MIN_MARGIN;
+        if (menuY < PANEL_HEIGHT + MIN_MARGIN * 2) menuY = PANEL_HEIGHT + MIN_MARGIN * 2;
+
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
@@ -1909,11 +1955,16 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                     if (paso < 2) {
                         paso = 3;
                         opcionConfirm = 0;
-                    } else {
+                    } else if (paso == 2) {
+                        // Si estamos en paso 2 (coordenadas), volvemos a paso 1 (acción)
                         paso = 1;
                         coordX = coordY = 0;
                         coordYselect = true;
                         errorCoord = false;
+                    } else if (paso == 3) {
+                        // Si estamos en paso 3 (confirmación), volvemos a paso 0 (selección tanque)
+                        paso = 0;
+                        opcionConfirm = 0;
                     }
                     continue;
                 }
@@ -1923,7 +1974,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                         opcionConfirm = 1 - opcionConfirm;
                     }
                     else if (event.key.code == sf::Keyboard::Enter) {
-                        if (opcionConfirm == 0) return AccionPlanificada(); // Rendirse
+                        if (opcionConfirm == 0) return AccionPlanificada();
                         paso = 0;
                     }
                     continue;
@@ -1973,9 +2024,6 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                     else if (event.key.code == sf::Keyboard::Enter) {
                         if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
                             Tanque* tanqueSeleccionado = tanquesJugador[indiceTanque];
-                            std::cout << "Jugador planifica " << accion << " en (" << coordX << "," << coordY << ")" << std::endl;
-                            
-                            // RETORNAR la acción en lugar de ejecutarla
                             return AccionPlanificada(tanqueSeleccionado, accion, coordX, coordY);
                         } else {
                             errorCoord = true;
@@ -1985,36 +2033,61 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
             }
         }
 
-        window.clear();
+        window.clear(sf::Color(20, 20, 30));
 
-        // Panel de información superior
-        {
-            sf::RectangleShape infoPanel({float(window.getSize().x), 50.f});
-            infoPanel.setPosition(0, 0);
-            infoPanel.setFillColor({30,30,30,220});
-            infoPanel.setOutlineColor(sf::Color::White);
-            infoPanel.setOutlineThickness(2);
-            window.draw(infoPanel);
+        sf::RectangleShape panelInfo({float(windowSize.x), float(PANEL_HEIGHT)});
+        panelInfo.setPosition(0, 0);
+        panelInfo.setFillColor(sf::Color(40, 40, 50, 200));
+        panelInfo.setOutlineColor(COLOR_BORDE_MENU);
+        panelInfo.setOutlineThickness(2);
+        window.draw(panelInfo);
 
-            for (size_t i = 0; i < tanquesJugador.size(); ++i) {
-                int dmg = tanquesJugador[i]->getDanio();
-                std::string tipo = (dmg == 100 ? "Ligero" : dmg == 150 ? "Mediano" : "Pesado");
-                sf::Text info("Tanque " + std::to_string(i+1) +
-                              " (" + tipo + ") Vida: " + std::to_string(tanquesJugador[i]->getVida()),
-                              font, 16);
-                info.setPosition(20 + i*250, 15);
-                if (tanquesJugador[i]->getVida() <= 0)
-                    info.setFillColor(sf::Color(128, 128, 128));  // Gris para tanque destruido
-                else if (i == indiceTanque)
-                    info.setFillColor(sf::Color::Yellow);         // Seleccionado
-                else
-                    info.setFillColor(sf::Color::White);
+        int fontSize = std::min(16, std::max(12, static_cast<int>(windowSize.x / 80)));
+        sf::Text tituloPanel("ESTADO TANQUES: ", font, fontSize);
+        tituloPanel.setFillColor(COLOR_TITULO);
+        tituloPanel.setPosition(20, 15);
+        tituloPanel.setStyle(sf::Text::Bold);
+        window.draw(tituloPanel);
 
-                window.draw(info);
+        float posicionX = 20 + tituloPanel.getLocalBounds().width + 10;
+        float posicionY = 15;
+        int tanqueFontSize = std::min(14, std::max(10, static_cast<int>(windowSize.x / 90)));
+        
+        for (size_t i = 0; i < tanquesJugador.size(); ++i) {
+            int damage = tanquesJugador[i]->getDanio();
+            std::string tipo = (damage == 100 ? "L" : damage == 150 ? "M" : "P");
+            
+            std::string textoTanque;
+            if (tanquesJugador[i]->getVida() <= 0) {
+                textoTanque = "T" + std::to_string(i+1) + tipo + ":DEST";
+            } else {
+                textoTanque = "T" + std::to_string(i+1) + tipo + ":" + std::to_string(tanquesJugador[i]->getVida()) + "HP";
+            }
+            
+            sf::Text infoTanque(textoTanque, font, tanqueFontSize);
+            infoTanque.setPosition(posicionX, posicionY);
+            
+            if (tanquesJugador[i]->getVida() <= 0) {
+                infoTanque.setFillColor(sf::Color(100, 100, 100));
+            } else if (i == indiceTanque && paso == 0) {
+                infoTanque.setFillColor(COLOR_SELECCIONADO);
+                infoTanque.setStyle(sf::Text::Bold);
+            } else {
+                infoTanque.setFillColor(COLOR_NORMAL);
+            }
+            
+            window.draw(infoTanque);
+            
+            float anchoTexto = infoTanque.getLocalBounds().width + 20;
+            if (posicionX + anchoTexto + 100 > windowSize.x) {
+                posicionX = 20;
+                posicionY += tanqueFontSize + 2;
+                if (posicionY > PANEL_HEIGHT - tanqueFontSize - 5) break;
+            } else {
+                posicionX += anchoTexto;
             }
         }
 
-        // Dibujar el tablero
         desplegarTablero(window, font, filas, columnas, cellSize, tablero,
                          texturaTerreno1, texturaTerreno2, texturaTerreno3,
                          texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
@@ -2023,7 +2096,6 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                          texturaTanqueMedianoJugadorDestruido, texturaTanquePesadoJugadorDestruido, texturaTanqueLigeroIADestruido,
                          texturaTanqueMedianoIADestruido, texturaTanquePesadoIADestruido);
 
-        // Selector visual del tanque seleccionado
         {
             Tanque* sel = tanquesJugador[indiceTanque];
             NodoSistema* nodo = tablero;
@@ -2042,109 +2114,210 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
             }
         }
 
-        // Preview movimiento/disparo
         if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
             previewRect.setPosition(
                 float(coordX*cellSize + offsetTableroX + 1),
                 float(coordY*cellSize + offsetTableroY + 1)
             );
             previewRect.setFillColor(
-                (accion=="Moverse") ? sf::Color(0,255,0,100) : sf::Color(255,0,0,100)
+                (accion=="Moverse") ? COLOR_PREVIEW_MOVER : COLOR_PREVIEW_ATACAR
             );
             window.draw(previewRect);
         }
 
-        // Menú de confirmación ESC
+        int tituloSize = std::min(18, std::max(12, menuWidth / 18));
+        int textoSize = std::min(15, std::max(11, menuWidth / 22));
+        int controlSize = std::min(13, std::max(9, menuWidth / 26));
+
         if (paso == 3) {
             sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
-            bg.setPosition(menuX-menuPadding, menuY-menuPadding);
-            bg.setFillColor({50,50,50,200});
-            bg.setOutlineColor(sf::Color::White);
-            bg.setOutlineThickness(2);
+            bg.setPosition(menuX-PADDING, menuY-PADDING);
+            bg.setFillColor(menuOverlay ? sf::Color(25, 25, 35, 250) : COLOR_FONDO_MENU);
+            bg.setOutlineColor(COLOR_BORDE_MENU);
+            bg.setOutlineThickness(3);
             window.draw(bg);
 
-            sf::Text titulo("AVISO DE EMERGENCIA SOLDADO", font, 20);
+            sf::Text titulo(" CONFIRMAR SALIDA ", font, tituloSize);
             titulo.setFillColor(sf::Color::Red);
+            titulo.setStyle(sf::Text::Bold);
             titulo.setPosition(menuX, menuY);
             window.draw(titulo);
 
-            sf::Text pregunta("¿DESEAS RENDIRTE ANTE EL ENEMIGO?", font, 18);
-            pregunta.setFillColor(sf::Color::White);
-            pregunta.setPosition(menuX, menuY + 30);
+            sf::Text pregunta("¿Realmente deseas\nrendirte?", font, textoSize);
+            pregunta.setFillColor(COLOR_NORMAL);
+            pregunta.setPosition(menuX, menuY + tituloSize + 20);
             window.draw(pregunta);
 
-            sf::Text si("SI", font, 22), no("NO", font, 22);
-            si.setPosition(menuX, menuY + 70);
-            no.setPosition(menuX, menuY + 100);
-            if (opcionConfirm == 0) si.setStyle(sf::Text::Underlined | sf::Text::Bold);
-            else                    no.setStyle(sf::Text::Underlined | sf::Text::Bold);
-            si.setFillColor(sf::Color::White);
-            no.setFillColor(sf::Color::White);
-            window.draw(si);
-            window.draw(no);
+            sf::Text opcionSi("RENDIRSE", font, textoSize);
+            sf::Text opcionNo("CONTINUAR", font, textoSize);
+            
+            int opcionesY = menuY + tituloSize + 80;
+            opcionSi.setPosition(menuX + 20, opcionesY);
+            opcionNo.setPosition(menuX + 20, opcionesY + 30);
+            
+            if (opcionConfirm == 0) {
+                opcionSi.setFillColor(sf::Color::Red);
+                opcionSi.setString("- RENDIRSE");
+                opcionSi.setStyle(sf::Text::Bold);
+                opcionNo.setFillColor(COLOR_NORMAL);
+                opcionNo.setString("  CONTINUAR");
+            } else {
+                opcionSi.setFillColor(COLOR_NORMAL);
+                opcionSi.setString("  RENDIRSE");
+                opcionNo.setFillColor(COLOR_SELECCIONADO);
+                opcionNo.setString("- CONTINUAR");
+                opcionNo.setStyle(sf::Text::Bold);
+            }
+            
+            window.draw(opcionSi);
+            window.draw(opcionNo);
+
+            sf::Text controles("Arriba/Abajo: Seleccionar\nENTER: Confirmar", font, controlSize);
+            controles.setFillColor(sf::Color(200, 200, 200));
+            controles.setPosition(menuX, opcionesY + 80);
+            window.draw(controles);
         }
         else {
-            // Menú normal
             sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
-            bg.setPosition(menuX-menuPadding, menuY-menuPadding);
-            bg.setFillColor({50,50,50,200});
-            bg.setOutlineColor(sf::Color::White);
-            bg.setOutlineThickness(2);
+            bg.setPosition(menuX-PADDING, menuY-PADDING);
+            bg.setFillColor(menuOverlay ? sf::Color(25, 25, 35, 250) : COLOR_FONDO_MENU);
+            bg.setOutlineColor(COLOR_BORDE_MENU);
+            bg.setOutlineThickness(3);
             window.draw(bg);
 
-            sf::Text menuTxt;
-            menuTxt.setFont(font);
-            menuTxt.setCharacterSize(20);
-            menuTxt.setFillColor(sf::Color::White);
-            menuTxt.setPosition(menuX, menuY);
-
             if (paso == 0) {
-                menuTxt.setString(
-                    "SELECCIONA TANQUE:\n"
-                    "(ARRIBA/ABAJO)\n"
-                    "ENTER=OK  ESC=Salir"
-                );
+                sf::Text titulo(" SELECCIONAR TANQUE ", font, tituloSize);
+                titulo.setFillColor(COLOR_TITULO);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(menuX, menuY);
+                window.draw(titulo);
+
+                sf::Text contenido;
+                contenido.setFont(font);
+                contenido.setCharacterSize(textoSize);
+                contenido.setFillColor(COLOR_NORMAL);
+                contenido.setPosition(menuX, menuY + tituloSize + 15);
+                
+                std::string texto = "\n";
+                texto += "Tanque Actual: #" + std::to_string(indiceTanque + 1) + "\n";
+                std::string tipoTanque = (tanquesJugador[indiceTanque]->getDanio() == 100 ? "Ligero" : 
+                                         tanquesJugador[indiceTanque]->getDanio() == 150 ? "Mediano" : "Pesado");
+                texto += "Tipo: " + tipoTanque + "\n";
+                texto += "Vida: " + std::to_string(tanquesJugador[indiceTanque]->getVida()) + " HP\n\n";
+                texto += " CONTROLES \n";
+                texto += " Arriba/Abajo: Cambiar tanque\n";
+                texto += " ENTER: Seleccionar\n";
+                texto += " ESC: Salir del juego\n";
+                
+                contenido.setString(texto);
+                window.draw(contenido);
+                
             } else if (paso == 1) {
-                menuTxt.setString(
-                    std::string((accion=="Moverse") ? "> Moverse\n" : "  Moverse\n") +
-                    std::string((accion=="Atacar")  ? "> Atacar\n"  : "  Atacar\n") +
-                    "\nENTER=OK  ESC=Atras"
-                );
-            } else {
-                menuTxt.setString(
-                    "Ingresa coordenadas:\n" +
-                    std::string("X: " + std::to_string(coordX) + "  Y: " + std::to_string(coordY)) +
-                    "\nSPACE/LEFT/RIGHT alternar\nENTER=OK  ESC=Atras"
-                );
-            }
-            window.draw(menuTxt);
-        }
+                sf::Text titulo(" SELECCIONAR ACCIÓN ", font, tituloSize);
+                titulo.setFillColor(COLOR_TITULO);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(menuX, menuY);
+                window.draw(titulo);
 
-        // Sección explosión
-        if (ultimaExplosion != NINGUNA) {
-            sf::Sprite spr; std::string msg;
-            if (ultimaExplosion == TERRENO) {
-                spr.setTexture(texturaExplosionTerreno);
-                msg = "Disparo acerto al terreno";
-            } else {
-                spr.setTexture(texturaExplosionTanque);
-                msg = "Disparo acerto a un tanque";
-            }
-            float exX = 475, exY = menuY + menuHeight + 50;
-            spr.setScale(1.5f, 1.5f);
-            spr.setPosition(exX, exY);
-            window.draw(spr);
+                std::string textoMover = (accion == "Moverse") ? "- MOVERSE" : "   Moverse";
+                std::string textoAtacar = (accion == "Atacar") ? "- ATACAR" : "   Atacar";
+                
+                sf::Text opcionMover(textoMover, font, textoSize);
+                sf::Text opcionAtacar(textoAtacar, font, textoSize);
+                
+                int opcionesY = menuY + tituloSize + 30;
+                opcionMover.setPosition(menuX + 15, opcionesY);
+                opcionAtacar.setPosition(menuX + 15, opcionesY + 25);
+                
+                opcionMover.setFillColor((accion == "Moverse") ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                opcionAtacar.setFillColor((accion == "Atacar") ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                
+                window.draw(opcionMover);
+                window.draw(opcionAtacar);
 
-            sf::Text te(msg, font, 20);
-            te.setFillColor(sf::Color::White);
-            te.setPosition(exX + 100, exY + 80);
-            window.draw(te);
+                sf::Text controles(" CONTROLES \n Arriba/Abajo: Cambiar acción\n ENTER: Confirmar\n ESC: Volver atrás\n", font, controlSize);
+                controles.setFillColor(sf::Color(200, 200, 200));
+                controles.setPosition(menuX, opcionesY + 65);
+                window.draw(controles);
+                
+            } else if (paso == 2) {
+                sf::Text titulo(" COORDENADAS ", font, tituloSize);
+                titulo.setFillColor(COLOR_TITULO);
+                titulo.setStyle(sf::Text::Bold);
+                titulo.setPosition(menuX, menuY);
+                window.draw(titulo);
+
+                sf::Text accionTxt("Acción: " + accion, font, textoSize);
+                accionTxt.setFillColor((accion == "Moverse") ? sf::Color::Green : sf::Color::Red);
+                accionTxt.setPosition(menuX, menuY + tituloSize + 10);
+                accionTxt.setStyle(sf::Text::Bold);
+                window.draw(accionTxt);
+
+                sf::Text coordLabel("Coordenadas:", font, textoSize);
+                coordLabel.setFillColor(COLOR_NORMAL);
+                coordLabel.setPosition(menuX, menuY + tituloSize + 40);
+                window.draw(coordLabel);
+
+                int campoWidth = std::max(45, std::min(60, menuWidth / 7));
+                int campoHeight = std::max(25, std::min(30, menuHeight / 18));
+                int coordY_pos = menuY + tituloSize + 65;
+
+                sf::RectangleShape campoX({float(campoWidth), float(campoHeight)});
+                campoX.setPosition(menuX + 15, coordY_pos);
+                campoX.setFillColor(!coordYselect ? sf::Color(100, 150, 255, 100) : sf::Color(50, 50, 50, 200));
+                campoX.setOutlineColor(!coordYselect ? COLOR_SELECCIONADO : sf::Color(128, 128, 128));
+                campoX.setOutlineThickness(2);
+                window.draw(campoX);
+
+                sf::Text labelX("X:", font, controlSize);
+                labelX.setPosition(menuX, coordY_pos + 6);
+                labelX.setFillColor(!coordYselect ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                window.draw(labelX);
+
+                sf::Text valorX(std::to_string(coordX), font, textoSize);
+                valorX.setPosition(menuX + 25, coordY_pos + 3);
+                valorX.setFillColor(COLOR_NORMAL);
+                valorX.setStyle(sf::Text::Bold);
+                window.draw(valorX);
+
+                int campoYX = menuX + 15 + campoWidth + 20;
+                sf::RectangleShape campoY({float(campoWidth), float(campoHeight)});
+                campoY.setPosition(campoYX, coordY_pos);
+                campoY.setFillColor(coordYselect ? sf::Color(100, 150, 255, 100) : sf::Color(50, 50, 50, 200));
+                campoY.setOutlineColor(coordYselect ? COLOR_SELECCIONADO : sf::Color(128, 128, 128));
+                campoY.setOutlineThickness(2);
+                window.draw(campoY);
+
+                sf::Text labelY("Y:", font, controlSize);
+                labelY.setPosition(campoYX - 15, coordY_pos + 6);
+                labelY.setFillColor(coordYselect ? COLOR_SELECCIONADO : COLOR_NORMAL);
+                window.draw(labelY);
+
+                sf::Text valorY(std::to_string(coordY), font, textoSize);
+                valorY.setPosition(campoYX + 10, coordY_pos + 3);
+                valorY.setFillColor(COLOR_NORMAL);
+                valorY.setStyle(sf::Text::Bold);
+                window.draw(valorY);
+
+                sf::Text controles(" CONTROLES \n 0-4: Ingresar número\n SPACE/←/→: Cambiar campo\n BACKS: Borrar dígito\n ENTER: Ejecutar\n ESC: Volver atrás\n", font, controlSize);
+                controles.setFillColor(sf::Color(200, 200, 200));
+                controles.setPosition(menuX, coordY_pos + 40);
+                window.draw(controles);
+
+                if (errorCoord) {
+                    sf::Text error("⚠ Coordenadas fuera del tablero", font, controlSize);
+                    error.setFillColor(COLOR_ERROR);
+                    error.setStyle(sf::Text::Bold);
+                    error.setPosition(menuX, coordY_pos + 150);
+                    window.draw(error);
+                }
+            }
         }
 
         window.display();
     }
     
-    return AccionPlanificada(); // Si sale del bucle sin completar
+    return AccionPlanificada();
 }
 
 // Función para ejecutar las acciones simultáneamente
@@ -2736,8 +2909,6 @@ bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::st
     return false;
 }
 
-
-// IA facil
 // Función para planificar acción de IA fácil
 AccionPlanificada planificarAccionIAFacil(
     std::stack<Tanque*> tanquesIAStack,
@@ -2827,8 +2998,6 @@ AccionPlanificada planificarAccionIAFacil(
         return AccionPlanificada(); // Acción inválida (no hace nada)
     }
 }
-
-
 
 AccionPlanificada planificarAccionIAMedia(
     std::stack<Tanque*> tanquesIAStack,
