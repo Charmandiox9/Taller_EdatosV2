@@ -2767,10 +2767,11 @@ AccionPlanificada planificarAccionIAFacil(
 
     // Seleccionar primer tanque IA vivo
     Tanque* ia = nullptr;
+    int vidaMin = INT_MAX;
     for (auto t : tanquesIA) {
-        if (t->getVida() > 0) {
+        if (t->getVida() > 0 && t->getVida() < vidaMin) {
             ia = t;
-            break;
+            vidaMin = t->getVida();
         }
     }
     if (!ia) return AccionPlanificada(); // Acción inválida
@@ -2856,12 +2857,15 @@ AccionPlanificada planificarAccionIAMedia(
     }
 
     Tanque* ia = nullptr;
-    for (auto t : tanquesIA) {
-        if (t->getVida() > 0) {
+    int vidaMin = INT_MAX;
+    // Buscar tanque IA con menor vida
+    for(auto t : tanquesIA) {
+        if (t->getVida() > 0 && t->getVida() < vidaMin) {
             ia = t;
-            break;
+            vidaMin = t->getVida();
         }
     }
+
     if (!ia) return AccionPlanificada(); // Acción inválida
 
     std::vector<Tanque*> vivos;
