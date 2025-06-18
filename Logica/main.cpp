@@ -1956,13 +1956,11 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                         paso = 3;
                         opcionConfirm = 0;
                     } else if (paso == 2) {
-                        // Si estamos en paso 2 (coordenadas), volvemos a paso 1 (acción)
                         paso = 1;
                         coordX = coordY = 0;
                         coordYselect = true;
                         errorCoord = false;
                     } else if (paso == 3) {
-                        // Si estamos en paso 3 (confirmación), volvemos a paso 0 (selección tanque)
                         paso = 0;
                         opcionConfirm = 0;
                     }
@@ -2143,7 +2141,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
             titulo.setPosition(menuX, menuY);
             window.draw(titulo);
 
-            sf::Text pregunta("¿Realmente deseas\nrendirte?", font, textoSize);
+            sf::Text pregunta("Realmente deseas rendirte?", font, textoSize);
             pregunta.setFillColor(COLOR_NORMAL);
             pregunta.setPosition(menuX, menuY + tituloSize + 20);
             window.draw(pregunta);
@@ -2157,7 +2155,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
             
             if (opcionConfirm == 0) {
                 opcionSi.setFillColor(sf::Color::Red);
-                opcionSi.setString("- RENDIRSE");
+                opcionSi.setString("-> RENDIRSE");
                 opcionSi.setStyle(sf::Text::Bold);
                 opcionNo.setFillColor(COLOR_NORMAL);
                 opcionNo.setString("  CONTINUAR");
@@ -2165,7 +2163,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                 opcionSi.setFillColor(COLOR_NORMAL);
                 opcionSi.setString("  RENDIRSE");
                 opcionNo.setFillColor(COLOR_SELECCIONADO);
-                opcionNo.setString("- CONTINUAR");
+                opcionNo.setString("-> CONTINUAR");
                 opcionNo.setStyle(sf::Text::Bold);
             }
             
@@ -2213,7 +2211,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                 window.draw(contenido);
                 
             } else if (paso == 1) {
-                sf::Text titulo(" SELECCIONAR ACCIÓN ", font, tituloSize);
+                sf::Text titulo(" SELECCIONAR ACCION ", font, tituloSize);
                 titulo.setFillColor(COLOR_TITULO);
                 titulo.setStyle(sf::Text::Bold);
                 titulo.setPosition(menuX, menuY);
@@ -2235,7 +2233,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                 window.draw(opcionMover);
                 window.draw(opcionAtacar);
 
-                sf::Text controles(" CONTROLES \n Arriba/Abajo: Cambiar acción\n ENTER: Confirmar\n ESC: Volver atrás\n", font, controlSize);
+                sf::Text controles(" CONTROLES \n Arriba/Abajo: Cambiar accion\n ENTER: Confirmar\n ESC: Volver atras\n", font, controlSize);
                 controles.setFillColor(sf::Color(200, 200, 200));
                 controles.setPosition(menuX, opcionesY + 65);
                 window.draw(controles);
@@ -2247,7 +2245,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                 titulo.setPosition(menuX, menuY);
                 window.draw(titulo);
 
-                sf::Text accionTxt("Acción: " + accion, font, textoSize);
+                sf::Text accionTxt("Accion: " + accion, font, textoSize);
                 accionTxt.setFillColor((accion == "Moverse") ? sf::Color::Green : sf::Color::Red);
                 accionTxt.setPosition(menuX, menuY + tituloSize + 10);
                 accionTxt.setStyle(sf::Text::Bold);
@@ -2299,13 +2297,13 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
                 valorY.setStyle(sf::Text::Bold);
                 window.draw(valorY);
 
-                sf::Text controles(" CONTROLES \n 0-4: Ingresar número\n SPACE/←/→: Cambiar campo\n BACKS: Borrar dígito\n ENTER: Ejecutar\n ESC: Volver atrás\n", font, controlSize);
+                sf::Text controles(" CONTROLES \n 0-4: Ingresar numero\n SPACE/Derecha/Izquierda: Cambiar campo\n BACKS: Borrar digito\n ENTER: Ejecutar\n ESC: Volver atras\n", font, controlSize);
                 controles.setFillColor(sf::Color(200, 200, 200));
                 controles.setPosition(menuX, coordY_pos + 40);
                 window.draw(controles);
 
                 if (errorCoord) {
-                    sf::Text error("⚠ Coordenadas fuera del tablero", font, controlSize);
+                    sf::Text error("Coordenadas fuera del tablero", font, controlSize);
                     error.setFillColor(COLOR_ERROR);
                     error.setStyle(sf::Text::Bold);
                     error.setPosition(menuX, coordY_pos + 150);
