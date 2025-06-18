@@ -46,6 +46,18 @@ TipoExplosion ultimaExplosion = NINGUNA;
 
 const int INF = numeric_limits<int>::max();
 
+// Estructura para almacenar patrones de juego y memoria táctica
+struct MemoriaTactica {
+    map<string, int> patronesJugador;  // Patrones del comportamiento del jugador
+    vector<pair<int, int>> posicionesVisitadas;  // Historial de posiciones
+    int movimientosAgresivos = 0;
+    int movimientosDefensivos = 0;
+    int disparosExitosos = 0;
+    int disparosFallidos = 0;
+};
+
+static MemoriaTactica memoriaIA;
+
 enum Accion { MOVER, DISPARAR, ESPERAR };
 // Representa el estado del juego
 struct EstadoJuego {
@@ -73,6 +85,116 @@ struct EstadoJuego {
     }
 };
 
+NodoSistema* buscarNodo(NodoSistema* tablero, int x, int y) {
+    NodoSistema* actual = tablero;
+    while (actual) {
+        if (actual->getPosX() == x && actual->getPosY() == y) {
+            return actual;
+        }
+        actual = actual->getSiguiente();
+    }
+    return nullptr;
+}
+
+bool esCeldaLibre(NodoSistema* tablero, int x, int y) {
+    NodoSistema* nodo = buscarNodo(tablero, x, y);
+    return nodo && nodo->getTanque() == nullptr;
+}
+
+// FUNCIÓN CORREGIDA: Buscar tanque en lista enlazada
+pair<int, int> obtenerPosicionTanque(NodoSistema* tablero, Tanque* tanque) {
+    NodoSistema* actual = tablero;
+    while (actual) {
+        if (actual->getTanque() == tanque) {
+            return {actual->getPosX(), actual->getPosY()};
+        }
+        actual = actual->getSiguiente();
+    }
+    return {-1, -1}; // No encontrado
+}
+
+
+// === ANÁLISIS PREDICTIVO DEL COMPORTAMIENTO DEL JUGADOR ===
+string obtenerPatronMovimiento(const vector<pair<int, int>>& historial) {
+    if (historial.size() < 3) return "DESCONOCIDO";
+    
+    string patron = "";
+    for (int i = historial.size() - 3; i < historial.size() - 1; i++) {
+        int dx = historial[i+1].first - historial[i].first;
+        int dy = historial[i+1].second - historial[i].second;
+        
+        if (dx == 1) patron += "D"; // Derecha
+        else if (dx == -1) patron += "I"; // Izquierda
+        else if (dy == 1) patron += "B"; // Abajo  
+        else if (dy == -1) patron += "A"; // Arriba
+        else patron += "X"; // Sin movimiento
+    }
+    
+    return patron;
+}
+
+pair<int, int> predecirProximoMovimiento(EstadoJuego* estado) {
+    pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
+    if (posJugador.first == -1) return {-1, -1};
+    
+    // Analizar patrones recientes
+    string patron = obtenerPatronMovimiento(memoriaIA.posicionesVisitadas);
+    
+    // Predicción basada en patrones previos
+    if (memoriaIA.patronesJugador.count(patron) > 0) {
+        // El jugador tiende a repetir patrones, predecir siguiente movimiento
+        char ultimoChar = patron.back();
+        switch (ultimoChar) {
+            case 'D': return {posJugador.first + 1, posJugador.second};
+            case 'I': return {posJugador.first - 1, posJugador.second};
+            case 'B': return {posJugador.first, posJugador.second + 1};
+            case 'A': return {posJugador.first, posJugador.second - 1};
+        }
+    }
+    
+    return posJugador; // Fallback a posición actual
+}
+
+// === EVALUACIÓN DE AMENAZAS AVANZADA ===
+int evaluarAmenazasTerritoriales(EstadoJuego* estado) {
+    int puntuacion = 0;
+    pair<int, int> posIA = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueIA);
+    pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
+    
+    if (posIA.first == -1 || posJugador.first == -1) return 0;
+    
+    // Control de territorio (influencia en celdas cercanas)
+    int controlIA = 0, controlJugador = 0;
+    
+    for (int y = 0; y < 5; y++) {
+        for (int x = 0; x < 5; x++) {
+            int distIA = abs(x - posIA.first) + abs(y - posIA.second);
+            int distJugador = abs(x - posJugador.first) + abs(y - posJugador.second);
+            
+            if (distIA < distJugador) controlIA++;
+            else if (distJugador < distIA) controlJugador++;
+        }
+    }
+    
+    puntuacion += (controlIA - controlJugador) * 3;
+    
+    // Evaluación de rutas de escape
+    int rutasEscapeIA = 0, rutasEscapeJugador = 0;
+    vector<pair<int, int>> direcciones = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+    
+    for (auto& dir : direcciones) {
+        if (esCeldaLibre(estado->tableroClonado, posIA.first + dir.first, posIA.second + dir.second)) {
+            rutasEscapeIA++;
+        }
+        if (esCeldaLibre(estado->tableroClonado, posJugador.first + dir.first, posJugador.second + dir.second)) {
+            rutasEscapeJugador++;
+        }
+    }
+    
+    puntuacion += (rutasEscapeIA - rutasEscapeJugador) * 8;
+    
+    return puntuacion;
+}
 
 NodoSistema* clonarTablero(NodoSistema* original) {
     if (!original) return nullptr;
@@ -111,33 +233,9 @@ NodoSistema* clonarTablero(NodoSistema* original) {
     return nuevoTablero;
 }
 
-NodoSistema* buscarNodo(NodoSistema* tablero, int x, int y) {
-    NodoSistema* actual = tablero;
-    while (actual) {
-        if (actual->getPosX() == x && actual->getPosY() == y) {
-            return actual;
-        }
-        actual = actual->getSiguiente();
-    }
-    return nullptr;
-}
 
-bool esCeldaLibre(NodoSistema* tablero, int x, int y) {
-    NodoSistema* nodo = buscarNodo(tablero, x, y);
-    return nodo && nodo->getTanque() == nullptr;
-}
 
-// FUNCIÓN CORREGIDA: Buscar tanque en lista enlazada
-pair<int, int> obtenerPosicionTanque(NodoSistema* tablero, Tanque* tanque) {
-    NodoSistema* actual = tablero;
-    while (actual) {
-        if (actual->getTanque() == tanque) {
-            return {actual->getPosX(), actual->getPosY()};
-        }
-        actual = actual->getSiguiente();
-    }
-    return {-1, -1}; // No encontrado
-}
+
 
 // Función para actualizar referencias de tanques después de clonar
 void actualizarReferenciasTanques(NodoSistema* tablero, Tanque*& tanqueIA, Tanque*& tanqueJugador) {
@@ -200,6 +298,204 @@ void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) 
     }
 }
 
+// === GENERACIÓN DE HIJOS ULTRA INTELIGENTE ===
+vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
+    vector<EstadoJuego*> hijos;
+    
+    // Determinar el tanque que debe actuar
+    Tanque* tanqueActual = estado->turnoIA ? estado->tanqueIA : estado->tanqueJugador;
+    
+    // === ESTRATEGIAS ADAPTATIVAS SEGÚN EL CONTEXTO ===
+    vector<pair<int, int>> movimientosPrioritarios;
+    
+    if (estado->turnoIA) {
+        pair<int, int> posIA = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueIA);
+        pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
+        pair<int, int> posPredicha = predecirProximoMovimiento(estado);
+        
+        if (posIA.first != -1 && posJugador.first != -1) {
+            int distancia = abs(posIA.first - posJugador.first) + abs(posIA.second - posJugador.second);
+            int diferenciaVida = estado->tanqueIA->getVida() - estado->tanqueJugador->getVida();
+            
+            // === ESTRATEGIA ADAPTATIVA AVANZADA ===
+            if (diferenciaVida >= 2) {
+                // MODO DOMINANTE: Presión constante y control territorial
+                if (distancia > 2) {
+                    // Acercarse de forma inteligente, cortando rutas de escape
+                    if (posJugador.first > posIA.first) movimientosPrioritarios.push_back({1, 0});
+                    if (posJugador.first < posIA.first) movimientosPrioritarios.push_back({-1, 0});
+                    if (posJugador.second > posIA.second) movimientosPrioritarios.push_back({0, 1});
+                    if (posJugador.second < posIA.second) movimientosPrioritarios.push_back({0, -1});
+                } else {
+                    // Mantener presión a distancia óptima
+                    movimientosPrioritarios.push_back({0, 1});
+                    movimientosPrioritarios.push_back({0, -1});
+                    movimientosPrioritarios.push_back({1, 0});
+                    movimientosPrioritarios.push_back({-1, 0});
+                }
+            } else if (diferenciaVida == 1) {
+                // MODO TÁCTICO: Juego posicional inteligente
+                // Moverse hacia posición predicha del jugador para interceptar
+                if (posPredicha.first > posIA.first) movimientosPrioritarios.push_back({1, 0});
+                if (posPredicha.first < posIA.first) movimientosPrioritarios.push_back({-1, 0});
+                if (posPredicha.second > posIA.second) movimientosPrioritarios.push_back({0, 1});
+                if (posPredicha.second < posIA.second) movimientosPrioritarios.push_back({0, -1});
+            } else if (diferenciaVida == 0) {
+                // MODO EQUILIBRIO: Control del centro y rutas estratégicas
+                int centroX = 2, centroY = 2;
+                if (centroX > posIA.first) movimientosPrioritarios.push_back({1, 0});
+                if (centroX < posIA.first) movimientosPrioritarios.push_back({-1, 0});
+                if (centroY > posIA.second) movimientosPrioritarios.push_back({0, 1});
+                if (centroY < posIA.second) movimientosPrioritarios.push_back({0, -1});
+            } else {
+                // MODO SUPERVIVENCIA: Evasión inteligente y contraataque
+                if (distancia <= 2) {
+                    // Alejarse mientras busca oportunidad de contraataque
+                    if (posJugador.first < posIA.first) movimientosPrioritarios.push_back({1, 0});
+                    if (posJugador.first > posIA.first) movimientosPrioritarios.push_back({-1, 0});
+                    if (posJugador.second < posIA.second) movimientosPrioritarios.push_back({0, 1});
+                    if (posJugador.second > posIA.second) movimientosPrioritarios.push_back({0, -1});
+                } else {
+                    // Posicionamiento defensivo en esquinas o bordes
+                    if (posIA.first < 2) movimientosPrioritarios.push_back({-1, 0});
+                    if (posIA.first > 2) movimientosPrioritarios.push_back({1, 0});
+                    if (posIA.second < 2) movimientosPrioritarios.push_back({0, -1});
+                    if (posIA.second > 2) movimientosPrioritarios.push_back({0, 1});
+                }
+            }
+        }
+    } else {
+        // Movimientos del jugador (sin cambios)
+        movimientosPrioritarios = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+    }
+    
+    // Asegurar que tenemos todas las direcciones
+    vector<pair<int, int>> todasDirecciones = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+    for (auto& dir : todasDirecciones) {
+        if (find(movimientosPrioritarios.begin(), movimientosPrioritarios.end(), dir) == movimientosPrioritarios.end()) {
+            movimientosPrioritarios.push_back(dir);
+        }
+    }
+    
+    // === GENERAR MOVIMIENTOS CON EVALUACIÓN PREVIA ===
+    vector<pair<EstadoJuego*, int>> candidatos; // Estado + evaluación rápida
+    
+    for (auto& dir : movimientosPrioritarios) {
+        NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
+        
+        Tanque* clonIA = nullptr;
+        Tanque* clonJugador = nullptr;
+        actualizarReferenciasTanques(clonTablero, clonIA, clonJugador);
+        
+        Tanque* clonActual = estado->turnoIA ? clonIA : clonJugador;
+        
+        pair<int, int> pos = obtenerPosicionTanque(clonTablero, clonActual);
+        if (pos.first == -1) continue;
+        
+        int nuevaX = pos.first + dir.first;
+        int nuevaY = pos.second + dir.second;
+        
+        if (nuevaX >= 0 && nuevaX < 5 && nuevaY >= 0 && nuevaY < 5) {
+            if (esCeldaLibre(clonTablero, nuevaX, nuevaY)) {
+                moverseSimulado(clonActual, clonTablero, nuevaX, nuevaY);
+                
+                EstadoJuego* hijo = new EstadoJuego(clonTablero, clonIA, clonJugador, !estado->turnoIA);
+                hijo->accionAplicada = MOVER;
+                hijo->posAccionX = nuevaX;
+                hijo->posAccionY = nuevaY;
+                
+                // Evaluación rápida para ordenar candidatos
+                int evalRapida = evaluarAmenazasTerritoriales(hijo);
+                candidatos.push_back({hijo, evalRapida});
+                continue;
+            }
+        }
+        
+        while (clonTablero) {
+            NodoSistema* temp = clonTablero;
+            clonTablero = clonTablero->getSiguiente();
+            delete temp;
+        }
+    }
+    
+    // Ordenar movimientos por calidad
+    if (estado->turnoIA) {
+        sort(candidatos.begin(), candidatos.end(), [](const pair<EstadoJuego*, int>& a, const pair<EstadoJuego*, int>& b) {
+            return a.second > b.second; // Mayor evaluación primero para IA
+        });
+    }
+    
+    // Agregar solo los mejores movimientos (los primeros 3)
+    int maxMovimientos = min(3, (int)candidatos.size());
+    for (int i = 0; i < maxMovimientos; i++) {
+        hijos.push_back(candidatos[i].first);
+    }
+    
+    // Limpiar candidatos no usados
+    for (int i = maxMovimientos; i < candidatos.size(); i++) {
+        delete candidatos[i].first;
+    }
+    
+    // === GENERAR DISPAROS INTELIGENTES ===
+    vector<pair<int, int>> objetivosDisparos;
+    
+    if (estado->turnoIA) {
+        pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
+        pair<int, int> posPredicha = predecirProximoMovimiento(estado);
+        
+        // Priorizar disparo a posición predicha
+        if (posPredicha.first != -1) {
+            objetivosDisparos.push_back(posPredicha);
+        }
+        
+        // Luego posición actual
+        if (posJugador.first != -1) {
+            objetivosDisparos.push_back(posJugador);
+        }
+    } else {
+        pair<int, int> posIA = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueIA);
+        if (posIA.first != -1) {
+            objetivosDisparos.push_back(posIA);
+        }
+    }
+    
+    // Generar solo disparos con alta probabilidad de éxito
+    for (auto& objetivo : objetivosDisparos) {
+        int x = objetivo.first;
+        int y = objetivo.second;
+        
+        NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
+        
+        Tanque* clonIA = nullptr;
+        Tanque* clonJugador = nullptr;
+        actualizarReferenciasTanques(clonTablero, clonIA, clonJugador);
+        
+        Tanque* clonActual = estado->turnoIA ? clonIA : clonJugador;
+        
+        NodoSistema* nodoObjetivo = buscarNodo(clonTablero, x, y);
+        if (nodoObjetivo && nodoObjetivo->getTanque() && 
+            nodoObjetivo->getTanque() != clonActual && 
+            nodoObjetivo->getTanque()->getVida() > 0) {
+            
+            dispararSimulado(clonActual, clonTablero, x, y);
+            
+            EstadoJuego* hijo = new EstadoJuego(clonTablero, clonIA, clonJugador, !estado->turnoIA);
+            hijo->accionAplicada = DISPARAR;
+            hijo->posAccionX = x;
+            hijo->posAccionY = y;
+            hijos.push_back(hijo);
+            continue;
+        }
+        
+        while (clonTablero) {
+            NodoSistema* temp = clonTablero;
+            clonTablero = clonTablero->getSiguiente();
+            delete temp;
+        }
+    }
+    
+    return hijos;
+}
 
 // === GENERACIÓN DE HIJOS MEJORADA (MÁS OPCIONES ESTRATÉGICAS) ===
 vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
@@ -344,6 +640,125 @@ vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
     return hijos;
 }
 
+// === FUNCIÓN DE EVALUACIÓN EXTREMADAMENTE AVANZADA ===
+int evaluarEstadoAvanzado(EstadoJuego* estado) {
+    int vidaIA = 0, vidaJugador = 0;
+    int terrenoIA = 0, terrenoJugador = 0;
+    
+    NodoSistema* nodoIA = nullptr;
+    NodoSistema* nodoJugador = nullptr;
+    
+    // Buscar tanques en el tablero clonado
+    NodoSistema* actual = estado->tableroClonado;
+    while (actual) {
+        Tanque* t = actual->getTanque();
+        if (t) {
+            if (t->esIA()) {
+                vidaIA = t->getVida();
+                terrenoIA = actual->getTipoTerreno();
+                nodoIA = actual;
+            } else {
+                vidaJugador = t->getVida();
+                terrenoJugador = actual->getTipoTerreno();
+                nodoJugador = actual;
+            }
+        }
+        actual = actual->getSiguiente();
+    }
+    
+    // === CONDICIONES DE VICTORIA/DERROTA (PESO MÁXIMO) ===
+    if (vidaIA <= 0) return -50000; // IA pierde
+    if (vidaJugador <= 0) return 50000; // IA gana
+    
+    // === EVALUACIÓN HEURÍSTICA ULTRA AVANZADA ===
+    int evaluacion = 0;
+    
+    if (nodoIA && nodoJugador) {
+        int distancia = abs(nodoIA->getPosX() - nodoJugador->getPosX()) + 
+                       abs(nodoIA->getPosY() - nodoJugador->getPosY());
+        
+        // 1. Diferencia de vida (crítico)
+        int diferenciaVida = vidaIA - vidaJugador;
+        evaluacion += diferenciaVida * 1000;
+        
+        // 2. Bonificación por vida alta propia
+        evaluacion += vidaIA * 200;
+        
+        // 3. Penalización por vida alta del enemigo  
+        evaluacion -= vidaJugador * 180;
+        
+        // 4. Ventaja de terreno amplificada
+        evaluacion += (terrenoIA - terrenoJugador) * 50;
+        
+        // 5. Evaluación territorial avanzada
+        evaluacion += evaluarAmenazasTerritoriales(estado);
+        
+        // 6. Control posicional dinámico
+        int centroIA = abs(nodoIA->getPosX() - 2) + abs(nodoIA->getPosY() - 2);
+        int centroJugador = abs(nodoJugador->getPosX() - 2) + abs(nodoJugador->getPosY() - 2);
+        
+        if (diferenciaVida >= 0) {
+            // Si IA va ganando, controlar centro es mejor
+            evaluacion += (centroJugador - centroIA) * 25;
+        } else {
+            // Si IA va perdiendo, huir a esquinas
+            evaluacion += centroIA * 15;
+        }
+        
+        // 7. Gestión de distancia estratégica avanzada
+        if (diferenciaVida >= 2) {
+            // Dominando: mantener presión óptima
+            int distanciaOptima = 2;
+            evaluacion -= abs(distancia - distanciaOptima) * 20;
+        } else if (diferenciaVida == 1) {
+            // Ligera ventaja: juego táctico
+            evaluacion -= distancia * 15; // Acercarse moderadamente
+        } else if (diferenciaVida == 0) {
+            // Equilibrio: control territorial
+            evaluacion += (distancia == 2 ? 30 : 0); // Distancia táctica ideal
+        } else if (diferenciaVida >= -1) {
+            // Ligera desventaja: cautela
+            evaluacion += distancia * 10; // Alejarse un poco
+        } else {
+            // Gran desventaja: supervivencia
+            evaluacion += distancia * 25; // Alejarse mucho
+        }
+        
+        // 8. Penalización por exposición a ataques
+        if (distancia == 1) {
+            if (diferenciaVida < 0) {
+                evaluacion -= 300; // IA en peligro inmediato
+            } else {
+                evaluacion += 150; // IA puede atacar
+            }
+        }
+        
+        // 9. Evaluación de movilidad
+        int movilidadIA = 0, movilidadJugador = 0;
+        vector<pair<int, int>> direcciones = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+        
+        for (auto& dir : direcciones) {
+            if (esCeldaLibre(estado->tableroClonado, 
+                           nodoIA->getPosX() + dir.first, 
+                           nodoIA->getPosY() + dir.second)) {
+                movilidadIA++;
+            }
+            if (esCeldaLibre(estado->tableroClonado, 
+                           nodoJugador->getPosX() + dir.first, 
+                           nodoJugador->getPosY() + dir.second)) {
+                movilidadJugador++;
+            }
+        }
+        
+        evaluacion += (movilidadIA - movilidadJugador) * 40;
+        
+        // 10. Bonus por experiencia acumulada
+        evaluacion += memoriaIA.disparosExitosos * 5;
+        evaluacion -= memoriaIA.disparosFallidos * 2;
+    }
+    
+    return evaluacion;
+}
 
 // === FUNCIÓN DE EVALUACIÓN MEJORADA (MÁS INTELIGENTE) ===
 int evaluarEstado(EstadoJuego* estado) {
@@ -433,6 +848,76 @@ int evaluarEstado(EstadoJuego* estado) {
     return evaluacion;
 }
 
+// === MINIMAX ULTRA INTELIGENTE CON OPTIMIZACIONES ===
+int minimaxAvanzado(EstadoJuego* estado, int profundidad, int alpha, int beta, bool esMaximizador, bool debug = false) {
+    // Profundidad adaptativa según la situación
+    if (profundidad == 0) {
+        int val = evaluarEstadoAvanzado(estado);
+        if (debug) {
+            cout << "Evaluando estado hoja con valor: " << val << endl;
+        }
+        return val;
+    }
+    
+    // Generar hijos con estrategia avanzada
+    vector<EstadoJuego*> hijos = generarHijosAvanzados(estado);
+    
+    if (hijos.empty()) {
+        int val = evaluarEstadoAvanzado(estado);
+        if (debug) {
+            cout << "No hay movimientos disponibles, valor: " << val << endl;
+        }
+        return val;
+    }
+    
+    int mejorValor;
+    
+    if (esMaximizador) { // Turno de la IA
+        mejorValor = INT_MIN;
+        for (EstadoJuego* hijo : hijos) {
+            int eval = minimaxAvanzado(hijo, profundidad - 1, alpha, beta, false, debug);
+            mejorValor = max(mejorValor, eval);
+            alpha = max(alpha, eval);
+            
+            if (debug) {
+                string accionStr = (hijo->accionAplicada == MOVER) ? "MOVER" : "DISPARAR";
+                cout << "IA - " << accionStr << " a (" << hijo->posAccionX << "," 
+                     << hijo->posAccionY << ") => Valor: " << eval << endl;
+            }
+            
+            if (beta <= alpha) {
+                if (debug) cout << "Poda alfa-beta" << endl;
+                break; // Poda alfa-beta
+            }
+        }
+    } else { // Turno del jugador
+        mejorValor = INT_MAX;
+        for (EstadoJuego* hijo : hijos) {
+            int eval = minimaxAvanzado(hijo, profundidad - 1, alpha, beta, true, debug);
+            mejorValor = min(mejorValor, eval);
+            beta = min(beta, eval);
+            
+            if (debug) {
+                string accionStr = (hijo->accionAplicada == MOVER) ? "MOVER" : "DISPARAR";
+                cout << "Jugador - " << accionStr << " a (" << hijo->posAccionX << "," 
+                     << hijo->posAccionY << ") => Valor: " << eval << endl;
+            }
+            
+            if (beta <= alpha) {
+                if (debug) cout << "Poda alfa-beta" << endl;
+                break; // Poda alfa-beta
+            }
+        }
+    }
+    
+    // Limpiar memoria
+    for (EstadoJuego* hijo : hijos) {
+        delete hijo;
+    }
+    
+    return mejorValor;
+}
+
 // === MINIMAX MEJORADO CON MAYOR PROFUNDIDAD ===
 int minimax(EstadoJuego* estado, int profundidad, int alpha, int beta, bool debug = false) {
     // Incrementar profundidad base para mayor dificultad
@@ -499,6 +984,99 @@ int minimax(EstadoJuego* estado, int profundidad, int alpha, int beta, bool debu
     }
 
     return mejorValor;
+}
+
+// === FUNCIÓN PRINCIPAL DE LA IA ULTRA DIFÍCIL ===
+pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoActual, int profundidadBase = 8) {
+    // Actualizar memoria táctica
+    pair<int, int> posJugador = obtenerPosicionTanque(estadoActual->tableroClonado, estadoActual->tanqueJugador);
+    if (posJugador.first != -1) {
+        memoriaIA.posicionesVisitadas.push_back(posJugador);
+        if (memoriaIA.posicionesVisitadas.size() > 10) {
+            memoriaIA.posicionesVisitadas.erase(memoriaIA.posicionesVisitadas.begin());
+        }
+        
+        string patron = obtenerPatronMovimiento(memoriaIA.posicionesVisitadas);
+        memoriaIA.patronesJugador[patron]++;
+    }
+    
+    // Profundidad adaptativa según la situación
+    int diferenciaVida = estadoActual->tanqueIA->getVida() - estadoActual->tanqueJugador->getVida();
+    int profundidad = profundidadBase;
+    
+    if (diferenciaVida < -1) {
+        profundidad += 2; // IA en desventaja, piensa más profundo
+    } else if (diferenciaVida > 1) {
+        profundidad += 1; // IA dominando, busca el mejor finisher
+    }
+    
+    vector<EstadoJuego*> hijos = generarHijosAvanzados(estadoActual);
+    
+    if (hijos.empty()) {
+        return {ESPERAR, {-1, -1}};
+    }
+    
+    int mejorValor = INT_MIN;
+    EstadoJuego* mejorHijo = nullptr;
+    
+    cout << "\n=== ANÁLISIS TÁCTICO DE LA IA AVANZADA ===" << endl;
+    cout << "Diferencia de vida: " << diferenciaVida << endl;
+    cout << "Profundidad de búsqueda: " << profundidad << endl;
+    cout << "Patrones detectados: " << memoriaIA.patronesJugador.size() << endl;
+    
+    for (EstadoJuego* hijo : hijos) {
+        int valor = minimaxAvanzado(hijo, profundidad - 1, INT_MIN, INT_MAX, false);
+        
+        cout << "Evaluando acción: " << (hijo->accionAplicada == MOVER ? "MOVER" : "DISPARAR")
+             << " a (" << hijo->posAccionX << "," << hijo->posAccionY 
+             << ") => Valor: " << valor << endl;
+        
+        if (valor > mejorValor) {
+            mejorValor = valor;
+            mejorHijo = hijo;
+        }
+    }
+    
+    Accion mejorAccion = mejorHijo->accionAplicada;
+    pair<int, int> mejorPosicion = {mejorHijo->posAccionX, mejorHijo->posAccionY};
+    
+    // Actualizar estadísticas de memoria
+    if (mejorAccion == DISPARAR) {
+        // Esto se actualizará después según el resultado real del disparo
+        memoriaIA.disparosFallidos++; // Asumimos fallo, se corregirá si acierta
+    }
+    
+    cout << "DECISIÓN FINAL: " << (mejorAccion == MOVER ? "MOVER" : "DISPARAR") 
+         << " a (" << mejorPosicion.first << "," << mejorPosicion.second 
+         << ") con valor: " << mejorValor << endl;
+    cout << "==========================================\n" << endl;
+    
+    // Limpiar memoria
+    for (EstadoJuego* hijo : hijos) {
+        delete hijo;
+    }
+    
+    return {mejorAccion, mejorPosicion};
+}
+
+// === FUNCIÓN PARA ACTUALIZAR ESTADÍSTICAS DE LA IA ===
+void actualizarEstadisticasIA(bool disparoExitoso) {
+    if (disparoExitoso) {
+        memoriaIA.disparosExitosos++;
+        if (memoriaIA.disparosFallidos > 0) {
+            memoriaIA.disparosFallidos--; // Corregir asunción previa
+        }
+    }
+}
+
+// === FUNCIÓN PARA RESETEAR MEMORIA ENTRE PARTIDAS ===
+void resetearMemoriaIA() {
+    memoriaIA.patronesJugador.clear();
+    memoriaIA.posicionesVisitadas.clear();
+    memoriaIA.movimientosAgresivos = 0;
+    memoriaIA.movimientosDefensivos = 0;
+    memoriaIA.disparosExitosos = 0;
+    memoriaIA.disparosFallidos = 0;
 }
 
 // === FUNCIÓN PARA USAR LA IA MEJORADA ===
@@ -1804,7 +2382,8 @@ AccionPlanificada obtenerAccionIA(
 
     // Crear estado y encontrar mejor jugada
     EstadoJuego* estadoActual = new EstadoJuego(tablero, tanqueIA, tanqueJugador, true);
-    auto mejorJugada = encontrarMejorJugada(estadoActual, 7);
+    //auto mejorJugada = encontrarMejorJugada(estadoActual, 7);
+    auto mejorJugada = encontrarMejorJugadaAvanzada(estadoActual, 7);
     
     Accion mejorAccion = mejorJugada.first;
     int mejorX = mejorJugada.second.first;
@@ -2625,7 +3204,8 @@ void accionesIADificil(
 
     cout<<"aaaaaaaax2.5"<<endl;
     // ENCONTRAR LA MEJOR JUGADA
-    auto mejorJugada = encontrarMejorJugada(estadoActual, 7); // profundidad 4
+    //auto mejorJugada = encontrarMejorJugada(estadoActual, 7); // profundidad 4
+    auto mejorJugada = encontrarMejorJugadaAvanzada(estadoActual, 7); // profundidad 4
     
 
     cout<<"aaaaaaaax2.6"<<endl;
