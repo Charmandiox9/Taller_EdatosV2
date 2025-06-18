@@ -101,7 +101,7 @@ bool esCeldaLibre(NodoSistema* tablero, int x, int y) {
     return nodo && nodo->getTanque() == nullptr;
 }
 
-// FUNCIÓN CORREGIDA: Buscar tanque en lista enlazada
+//Buscar tanque en lista enlazada
 pair<int, int> obtenerPosicionTanque(NodoSistema* tablero, Tanque* tanque) {
     NodoSistema* actual = tablero;
     while (actual) {
@@ -114,7 +114,7 @@ pair<int, int> obtenerPosicionTanque(NodoSistema* tablero, Tanque* tanque) {
 }
 
 
-// === ANÁLISIS PREDICTIVO DEL COMPORTAMIENTO DEL JUGADOR ===
+// ANÁLISIS PREDICTIVO DEL COMPORTAMIENTO DEL JUGADOR
 string obtenerPatronMovimiento(const vector<pair<int, int>>& historial) {
     if (historial.size() < 3) return "DESCONOCIDO";
     
@@ -155,7 +155,7 @@ pair<int, int> predecirProximoMovimiento(EstadoJuego* estado) {
     return posJugador; // Fallback a posición actual
 }
 
-// === EVALUACIÓN DE AMENAZAS AVANZADA ===
+// EVALUACIÓN DE AMENAZAS AVANZADA
 int evaluarAmenazasTerritoriales(EstadoJuego* estado) {
     int puntuacion = 0;
     pair<int, int> posIA = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueIA);
@@ -206,9 +206,6 @@ NodoSistema* clonarTablero(NodoSistema* original) {
     int id = 100;
     while (actual) {
         NodoSistema* nuevo = new NodoSistema(id++, actual->getPosX(), actual->getPosY(), actual->getTipoTerreno());
-        /*nuevo->setPosX(actual->getPosX());
-        nuevo->setPosY(actual->getPosY());
-        nuevo->setTipoTerreno(actual->getTipoTerreno());*/
 
         // Clonamos el tanque si existe
         if (actual->getTanque()) {
@@ -298,14 +295,14 @@ void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) 
     }
 }
 
-// === GENERACIÓN DE HIJOS ULTRA INTELIGENTE ===
+// GENERACIÓN DE HIJOS
 vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
     vector<EstadoJuego*> hijos;
     
     // Determinar el tanque que debe actuar
     Tanque* tanqueActual = estado->turnoIA ? estado->tanqueIA : estado->tanqueJugador;
     
-    // === ESTRATEGIAS ADAPTATIVAS SEGÚN EL CONTEXTO ===
+    // ESTRATEGIAS SEGÚN EL CONTEXTO
     vector<pair<int, int>> movimientosPrioritarios;
     
     if (estado->turnoIA) {
@@ -317,7 +314,7 @@ vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
             int distancia = abs(posIA.first - posJugador.first) + abs(posIA.second - posJugador.second);
             int diferenciaVida = estado->tanqueIA->getVida() - estado->tanqueJugador->getVida();
             
-            // === ESTRATEGIA ADAPTATIVA AVANZADA ===
+            // ESTRATEGIA ADAPTATIVA AVANZADA
             if (diferenciaVida >= 2) {
                 // MODO DOMINANTE: Presión constante y control territorial
                 if (distancia > 2) {
@@ -365,7 +362,7 @@ vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
             }
         }
     } else {
-        // Movimientos del jugador (sin cambios)
+        // Movimientos del jugador
         movimientosPrioritarios = {{0,1}, {0,-1}, {1,0}, {-1,0}};
     }
     
@@ -377,7 +374,7 @@ vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
         }
     }
     
-    // === GENERAR MOVIMIENTOS CON EVALUACIÓN PREVIA ===
+    // GENERAR MOVIMIENTOS CON EVALUACIÓN PREVIA
     vector<pair<EstadoJuego*, int>> candidatos; // Estado + evaluación rápida
     
     for (auto& dir : movimientosPrioritarios) {
@@ -436,7 +433,7 @@ vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
         delete candidatos[i].first;
     }
     
-    // === GENERAR DISPAROS INTELIGENTES ===
+    // GENERAR DISPAROS INTELIGENTES
     vector<pair<int, int>> objetivosDisparos;
     
     if (estado->turnoIA) {
@@ -497,14 +494,14 @@ vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
     return hijos;
 }
 
-// === GENERACIÓN DE HIJOS MEJORADA (MÁS OPCIONES ESTRATÉGICAS) ===
+// GENERACIÓN DE HIJOS
 vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
     vector<EstadoJuego*> hijos;
 
     // Determinar el tanque que debe actuar
     Tanque* tanqueActual = estado->turnoIA ? estado->tanqueIA : estado->tanqueJugador;
 
-    // === MOVIMIENTOS PRIORIZADOS ===
+    // MOVIMIENTOS PRIORIZADOS
     // Direcciones ordenadas por prioridad estratégica
     vector<pair<int, int>> direcciones;
     
@@ -542,7 +539,7 @@ vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
         }
     }
 
-    // === GENERAR MOVIMIENTOS POSIBLES ===
+    // GENERAR MOVIMIENTOS POSIBLES
     for (auto& dir : direcciones) {
         NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
         
@@ -578,7 +575,7 @@ vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
         }
     }
 
-    // === GENERAR DISPAROS POSIBLES (PRIORIZADOS) ===
+    // GENERAR DISPAROS POSIBLES
     vector<pair<int, int>> objetivos;
     
     // Encontrar posición del enemigo para priorizar ataques
@@ -640,7 +637,7 @@ vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
     return hijos;
 }
 
-// === FUNCIÓN DE EVALUACIÓN EXTREMADAMENTE AVANZADA ===
+// FUNCIÓN DE EVALUACIÓN
 int evaluarEstadoAvanzado(EstadoJuego* estado) {
     int vidaIA = 0, vidaJugador = 0;
     int terrenoIA = 0, terrenoJugador = 0;
@@ -666,18 +663,18 @@ int evaluarEstadoAvanzado(EstadoJuego* estado) {
         actual = actual->getSiguiente();
     }
     
-    // === CONDICIONES DE VICTORIA/DERROTA (PESO MÁXIMO) ===
+    // CONDICIONES DE VICTORIA/DERROTA
     if (vidaIA <= 0) return -50000; // IA pierde
     if (vidaJugador <= 0) return 50000; // IA gana
     
-    // === EVALUACIÓN HEURÍSTICA ULTRA AVANZADA ===
+    // EVALUACIÓN HEURÍSTICA ULTRA AVANZADA
     int evaluacion = 0;
     
     if (nodoIA && nodoJugador) {
         int distancia = abs(nodoIA->getPosX() - nodoJugador->getPosX()) + 
                        abs(nodoIA->getPosY() - nodoJugador->getPosY());
         
-        // 1. Diferencia de vida (crítico)
+        // 1. Diferencia de vida
         int diferenciaVida = vidaIA - vidaJugador;
         evaluacion += diferenciaVida * 1000;
         
@@ -760,7 +757,7 @@ int evaluarEstadoAvanzado(EstadoJuego* estado) {
     return evaluacion;
 }
 
-// === FUNCIÓN DE EVALUACIÓN MEJORADA (MÁS INTELIGENTE) ===
+// FUNCIÓN DE EVALUACIÓN MEJORADA
 int evaluarEstado(EstadoJuego* estado) {
     int vidaIA = 0, vidaJugador = 0;
     int terrenoIA = 0, terrenoJugador = 0;
@@ -789,18 +786,17 @@ int evaluarEstado(EstadoJuego* estado) {
         actual = actual->getSiguiente();
     }
 
-    // Calcular distancia Manhattan
+    // Calcular distancia
     if (nodoIA && nodoJugador) {
         int dx = abs(nodoIA->getPosX() - nodoJugador->getPosX());
         int dy = abs(nodoIA->getPosY() - nodoJugador->getPosY());
         distanciaTotal = dx + dy;
         
-        // === NUEVAS HEURÍSTICAS AVANZADAS ===
         
-        // 1. Ventaja posicional (controlar el centro es mejor)
+        // 1. Ventaja posicional
         int centroIA = abs(nodoIA->getPosX() - 2) + abs(nodoIA->getPosY() - 2);
         int centroJugador = abs(nodoJugador->getPosX() - 2) + abs(nodoJugador->getPosY() - 2);
-        ventajaPosicional = (centroJugador - centroIA) * 5; // IA prefiere estar en el centro
+        ventajaPosicional = (centroJugador - centroIA) * 5;
         
         // 2. Amenazas directas (puede atacar en el próximo turno)
         if (distanciaTotal == 1) {
@@ -817,11 +813,10 @@ int evaluarEstado(EstadoJuego* estado) {
         if (jugadorEnEsquina) ventajaPosicional -= 10; // Jugador en esquina es malo para la IA
     }
 
-    // === CONDICIONES DE VICTORIA/DERROTA (PESO MÁXIMO) ===
+    // CONDICIONES DE VICTORIA/DERROTA
     if (vidaIA <= 0) return -10000; // IA pierde
     if (vidaJugador <= 0) return 10000; // IA gana
 
-    // === EVALUACIÓN HEURÍSTICA MEJORADA ===
     int evaluacion = 0;
     
     // Prioridad 1: Diferencia de vida (más importante)
@@ -848,7 +843,7 @@ int evaluarEstado(EstadoJuego* estado) {
     return evaluacion;
 }
 
-// === MINIMAX ULTRA INTELIGENTE CON OPTIMIZACIONES ===
+// MINIMAX ULTRA INTELIGENTE CON OPTIMIZACIONES
 int minimaxAvanzado(EstadoJuego* estado, int profundidad, int alpha, int beta, bool esMaximizador, bool debug = false) {
     // Profundidad adaptativa según la situación
     if (profundidad == 0) {
@@ -918,7 +913,7 @@ int minimaxAvanzado(EstadoJuego* estado, int profundidad, int alpha, int beta, b
     return mejorValor;
 }
 
-// === MINIMAX MEJORADO CON MAYOR PROFUNDIDAD ===
+// MINIMAX MEJORADO CON MAYOR PROFUNDIDAD
 int minimax(EstadoJuego* estado, int profundidad, int alpha, int beta, bool debug = false) {
     // Incrementar profundidad base para mayor dificultad
     if (profundidad == 0) {
@@ -986,7 +981,7 @@ int minimax(EstadoJuego* estado, int profundidad, int alpha, int beta, bool debu
     return mejorValor;
 }
 
-// === FUNCIÓN PRINCIPAL DE LA IA ULTRA DIFÍCIL ===
+// FUNCIÓN PRINCIPAL DE LA IA ULTRA DIFÍCIL
 pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoActual, int profundidadBase = 8) {
     // Actualizar memoria táctica
     pair<int, int> posJugador = obtenerPosicionTanque(estadoActual->tableroClonado, estadoActual->tanqueJugador);
@@ -1059,7 +1054,7 @@ pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoAct
     return {mejorAccion, mejorPosicion};
 }
 
-// === FUNCIÓN PARA ACTUALIZAR ESTADÍSTICAS DE LA IA ===
+// FUNCIÓN PARA ACTUALIZAR ESTADÍSTICAS DE LA IA
 void actualizarEstadisticasIA(bool disparoExitoso) {
     if (disparoExitoso) {
         memoriaIA.disparosExitosos++;
@@ -1069,7 +1064,7 @@ void actualizarEstadisticasIA(bool disparoExitoso) {
     }
 }
 
-// === FUNCIÓN PARA RESETEAR MEMORIA ENTRE PARTIDAS ===
+// FUNCIÓN PARA RESETEAR MEMORIA ENTRE PARTIDAS
 void resetearMemoriaIA() {
     memoriaIA.patronesJugador.clear();
     memoriaIA.posicionesVisitadas.clear();
@@ -1079,8 +1074,8 @@ void resetearMemoriaIA() {
     memoriaIA.disparosFallidos = 0;
 }
 
-// === FUNCIÓN PARA USAR LA IA MEJORADA ===
-pair<Accion, pair<int, int>> encontrarMejorJugada(EstadoJuego* estadoActual, int profundidad = 6) { // Profundidad aumentada
+// FUNCIÓN PARA USAR LA IA MEJORADA
+pair<Accion, pair<int, int>> encontrarMejorJugada(EstadoJuego* estadoActual, int profundidad = 6) {
     vector<EstadoJuego*> hijos = generarHijos(estadoActual);
     
     if (hijos.empty()) {
@@ -1113,8 +1108,7 @@ pair<Accion, pair<int, int>> encontrarMejorJugada(EstadoJuego* estadoActual, int
     return {mejorAccion, mejorPosicion};
 }
 
-// ========== FUNCIONES PARA EJECUTAR ACCIONES REALES ==========
-// Declaraciones de las funciones que ya tienes implementadas
+// FUNCIONES PARA EJECUTAR ACCIONES REALES
 void moverseSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY);
 void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY);
 
@@ -1281,7 +1275,7 @@ void disparar(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
                     tanqueEnPosicion->actualizarVida(tanque->getDanio());
                     cout << "Tanque ID: " << tanqueEnPosicion->getIdTanque() << " ha sido alcanzado!" << endl;
                     cout << "Vida restante: " << tanqueEnPosicion->getVida() << endl;
-                    // ...dentro de disparar, cuando el disparo acierta...
+
                     explosiones.push_back({posX, posY, 5.0f, TANQUE});
                     std::cout << "Explosión agregada en (" << posX << ", " << posY << ")" << std::endl;
                     ultimaExplosion = TANQUE;
@@ -1524,7 +1518,7 @@ bool mostrarMenuSeleccionTanquesJugador(
         float marginX = width * 0.1f;
         float marginY = height * 0.08f;
 
-        // --- Dibujo titulo ---
+        // Dibujo titulo
         sf::Text titulo("Selecciona tus tanques", font, tamTitulo);
         titulo.setFillColor(sf::Color(110, 180, 100));
         // Centrar horizontal
@@ -1534,7 +1528,7 @@ bool mostrarMenuSeleccionTanquesJugador(
         titulo.setPosition(width / 2.f, marginY);
         window.draw(titulo);
 
-        // --- Dibujo Volver ---
+        // Dibujo Volver
         sf::Text volver("Volver (ESC)", font, tamInfo);
         volver.setFillColor(sf::Color(180, 180, 180));
         volver.setPosition(marginX * 0.3f, marginY * 0.3f);
@@ -1603,7 +1597,7 @@ bool mostrarMenuSeleccionTanquesJugador(
         count.setPosition(marginX, marginY * 4.5f);
         window.draw(count);
 
-        // --- Dibujo tablero ---
+        // Dibujo tablero
         // Ajustar cellSize según tamaño ventana
         float maxTableroWidth = width * 0.8f; // que el tablero ocupe max 80% ancho
         float maxTableroHeight = height * 0.5f; // max 50% alto
@@ -1632,7 +1626,7 @@ bool mostrarMenuSeleccionTanquesJugador(
             cur = cur->getSiguiente();
         }
 
-        // --- Mostrar controles disponibles ---
+        // Mostrar controles disponibles
         sf::Text controles("", font, tamInfo * 0.9f);
         controles.setFillColor(sf::Color(160, 160, 160));
 
@@ -1646,7 +1640,7 @@ bool mostrarMenuSeleccionTanquesJugador(
         controles.setPosition(marginX * 0.3f, height - marginY * 0.6f);
         window.draw(controles);
 
-        // --- Mostrar estado actual (accion que se esta haciendo) ---
+        // Mostrar estado actual
         sf::Text estadoActual("", font, tamInfo);
         estadoActual.setFillColor(sf::Color::Yellow);
 
@@ -1764,7 +1758,7 @@ void desplegarTablero(
         sf::FloatRect bounds = text.getLocalBounds();
 
         float posX = col * cellSize + offsetTableroX + (cellSize - bounds.width) / 2.0f - bounds.left;
-        float posY = offsetTableroY - 30;  // encima del tablero
+        float posY = offsetTableroY - 30;
         text.setPosition(posX, posY);
         window.draw(text);
     }
@@ -1916,7 +1910,7 @@ void desplegarTablero(
         actual = actual->getSiguiente();
     }
 
-    // Ahora dibuja todas las explosiones activas
+    // Dibuja todas las explosiones activas
     /*for (const Explosion& ex : explosiones) {
         sf::Sprite spriteExplosion;
         const sf::Texture* tex = nullptr;
@@ -2091,7 +2085,7 @@ void aplicarConfiguracionPantalla(sf::RenderWindow& window) {
     window.create(sf::VideoMode(res.ancho, res.alto), "Ferrum Bellum", sf::Style::Default);
 }
 
-// MENÚ DE CONFIGURACIÓN (SOLO MÚSICA Y RESOLUCIÓN)
+// MENÚ DE CONFIGURACIÓN
 int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {
         "Volumen Musica",
@@ -2120,7 +2114,7 @@ int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
                 } else if (event.key.code == sf::Keyboard::Down) {
                     seleccion = (seleccion + 1) % opciones.size();
                 } else if (event.key.code == sf::Keyboard::Left) {
-                    // Ajustar valores hacia la izquierda
+                    
                     switch(seleccion) {
                         case 0: // Volumen Música
                             volumenMusica = std::max(0.0f, volumenMusica - 5.0f);
@@ -2130,7 +2124,6 @@ int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
                             break;
                     }
                 } else if (event.key.code == sf::Keyboard::Right) {
-                    // Ajustar valores hacia la derecha
                     switch(seleccion) {
                         case 0: // Volumen Música
                             volumenMusica = std::min(100.0f, volumenMusica + 5.0f);
@@ -2211,7 +2204,7 @@ int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
                 window.draw(textoValor);
             }
 
-            // Barra de volumen (solo para música)
+            // Barra de volumen
             if (i == 0) {
                 sf::RectangleShape barraFondo(sf::Vector2f(120, 8));
                 barraFondo.setFillColor(sf::Color(60, 60, 60));
@@ -2334,7 +2327,7 @@ struct AccionPlanificada {
         : tanque(t), tipoAccion(tipo), coordX(x), coordY(y), esValida(true) {}
 };
 
-// Función para obtener la acción de la IA (modificada para retornar en lugar de ejecutar)
+// Función para obtener la acción de la IA
 AccionPlanificada obtenerAccionIA(
     std::stack<Tanque*>& tanquesIA,
     NodoSistema* tablero,
@@ -3368,8 +3361,7 @@ void accionesIADificil(
         return;
     }
 
-    // CREAR ESTADO INICIAL CORRECTAMENTE
-    // Nota: No clonamos aquí porque EstadoJuego se encarga de clonar
+
     EstadoJuego* estadoActual = new EstadoJuego(tablero, tanqueIA, tanqueJugador, true);
     
 
@@ -3788,8 +3780,8 @@ void bucleDeCombateSimultaneo(
 void bucleDeCombate(
     sf::RenderWindow& window,
     sf::Font& font,
-    std::stack<Tanque*>& tanquesJugador,  // Pasar por referencia para que se mantenga el estado
-    std::stack<Tanque*>& tanquesIA,       // Igual, referencia
+    std::stack<Tanque*>& tanquesJugador,
+    std::stack<Tanque*>& tanquesIA,
     NodoSistema* tablero,
     int filas,
     int columnas,
@@ -3890,7 +3882,7 @@ void bucleDeCombate(
             accionIA = obtenerAccionIA(tanquesIA, tablero, filas, columnas);
         }
 
-        // FASE 3: Ejecutar ambas acciones simultáneamente (todas las dificultades)
+        // FASE 3: Ejecutar ambas acciones simultáneamente
         ejecutarAccionesSimultaneas(accionJugador, accionIA, tablero);
 
         // Redibujar tablero final después de las acciones simultáneas
@@ -3975,7 +3967,7 @@ int main() {
             std::stack<Tanque*> tanquesJugador;
             std::stack<Tanque*> tanquesIA;
 
-            // Cargar texturas (igual que antes)
+            // Cargar texturas
             sf::Texture texturaTerreno1, texturaTerreno2, texturaTerreno3;
             sf::Texture texturaTanque1Jugador, texturaTanque2Jugador, texturaTanque3Jugador;
             sf::Texture texturaTanque1IA, texturaTanque2IA, texturaTanque3IA, 
