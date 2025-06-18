@@ -52,12 +52,13 @@ Este proyecto utiliza la versión dinámica de SFML y está diseñado para compi
 
 - Ejecuta el siguiente comando desde la raíz del proyecto:
   ```bash
-  C:/msys64/ucrt64/bin/g++.exe -g Logica/main.cpp Dominio/Tanques/Tanque.cpp Dominio/Tanques/TanquePesado.cpp Dominio/Tanques/TanqueLigero.cpp Dominio/Tanques/TanqueMediano.cpp Dominio/Nodos/NodoSistema.cpp -I C:/msys64/ucrt64/include -o app.exe -L C:/msys64/ucrt64/lib -lsfml-graphics -lsfml-window -lsfml-system -lopengl32 -lfreetype -lwinmm -lgdi32
+  C:/msys64/ucrt64/bin/g++.exe -g Logica/main.cpp Dominio/Tanques/Tanque.cpp Dominio/Tanques/TanquePesado.cpp Dominio/Tanques/TanqueLigero.cpp Dominio/Tanques/TanqueMediano.cpp Dominio/Nodos/NodoSistema.cpp -I C:/msys64/ucrt64/include -o app.exe -L C:/msys64/ucrt64/lib -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio -lopengl32 -lfreetype -lwinmm -lgdi32
 
 ## Ejecución
 
 - Asegúrate de haber compilado correctamente (app.exe).
 - Luego, ejecuta:
+  ```bash
   ./app.exe
 
 ---
