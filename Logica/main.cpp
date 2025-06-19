@@ -7,6 +7,7 @@
 #include <ctime>   // Para time()
 #include <limits>
 #include <cmath>
+#include <chrono>
 
 #include "../Dominio/Tanques/Tanque.h"
 #include "../Dominio/Tanques/TanqueLigero.h"
@@ -16,10 +17,17 @@
 using namespace std;
 
 // Variables globales para configuraciones
+enum TipoExplosion { NINGUNA, TERRENO, TANQUE };
+enum Accion { MOVER, DISPARAR, ESPERAR };
+
 float volumenMusica = 50.0f;
 float volumenEfectos = 50.0f;
 int resolucionSeleccionada = 1; // 0=800x600, 1=1024x768, 2=1280x720, 3=1920x1080
+const int INF = numeric_limits<int>::max();
 
+TipoExplosion ultimaExplosion = NINGUNA;
+
+// Estructura para almacenar información de resoluciones
 struct Resolucion {
     int ancho, alto;
     std::string nombre;
@@ -32,8 +40,7 @@ std::vector<Resolucion> resoluciones = {
     {1920, 1080, "1920x1080"}
 };
 
-enum TipoExplosion { NINGUNA, TERRENO, TANQUE };
-
+// Estructura para almacenar información de explosiones
 struct Explosion {
     int x, y;
     float tiempoRestante;
@@ -41,10 +48,6 @@ struct Explosion {
 };
 
 std::vector<Explosion> explosiones; //explosiones activas
-
-TipoExplosion ultimaExplosion = NINGUNA;
-
-const int INF = numeric_limits<int>::max();
 
 // Estructura para almacenar patrones de juego y memoria táctica
 struct MemoriaTactica {
@@ -56,9 +59,9 @@ struct MemoriaTactica {
     int disparosFallidos = 0;
 };
 
+// Instancia global de memoria táctica
 static MemoriaTactica memoriaIA;
 
-enum Accion { MOVER, DISPARAR, ESPERAR };
 // Representa el estado del juego
 struct EstadoJuego {
     NodoSistema* tableroClonado; // Copia del tablero original
@@ -85,6 +88,20 @@ struct EstadoJuego {
     }
 };
 
+// Estructura para almacenar una acción planificada
+struct AccionPlanificada {
+    Tanque* tanque;
+    std::string tipoAccion; // "Moverse" o "Atacar"
+    int coordX;
+    int coordY;
+    bool esValida;
+    
+    AccionPlanificada() : tanque(nullptr), tipoAccion(""), coordX(-1), coordY(-1), esValida(false) {}
+    AccionPlanificada(Tanque* t, std::string tipo, int x, int y) 
+        : tanque(t), tipoAccion(tipo), coordX(x), coordY(y), esValida(true) {}
+};
+
+// Función para buscar un nodo en la lista enlazada del tablero
 NodoSistema* buscarNodo(NodoSistema* tablero, int x, int y) {
     NodoSistema* actual = tablero;
     while (actual) {
@@ -96,6 +113,7 @@ NodoSistema* buscarNodo(NodoSistema* tablero, int x, int y) {
     return nullptr;
 }
 
+// Verifica si una celda está libre (sin tanque)
 bool esCeldaLibre(NodoSistema* tablero, int x, int y) {
     NodoSistema* nodo = buscarNodo(tablero, x, y);
     return nodo && nodo->getTanque() == nullptr;
@@ -112,7 +130,6 @@ pair<int, int> obtenerPosicionTanque(NodoSistema* tablero, Tanque* tanque) {
     }
     return {-1, -1}; // No encontrado
 }
-
 
 // ANÁLISIS PREDICTIVO DEL COMPORTAMIENTO DEL JUGADOR
 string obtenerPatronMovimiento(const vector<pair<int, int>>& historial) {
@@ -133,6 +150,7 @@ string obtenerPatronMovimiento(const vector<pair<int, int>>& historial) {
     return patron;
 }
 
+// PREDICCIÓN DEL PRÓXIMO MOVIMIENTO DEL JUGADOR
 pair<int, int> predecirProximoMovimiento(EstadoJuego* estado) {
     pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
     if (posJugador.first == -1) return {-1, -1};
@@ -196,6 +214,7 @@ int evaluarAmenazasTerritoriales(EstadoJuego* estado) {
     return puntuacion;
 }
 
+// CLONACIÓN DEL TABLERO
 NodoSistema* clonarTablero(NodoSistema* original) {
     if (!original) return nullptr;
 
@@ -230,10 +249,6 @@ NodoSistema* clonarTablero(NodoSistema* original) {
     return nuevoTablero;
 }
 
-
-
-
-
 // Función para actualizar referencias de tanques después de clonar
 void actualizarReferenciasTanques(NodoSistema* tablero, Tanque*& tanqueIA, Tanque*& tanqueJugador) {
     NodoSistema* actual = tablero;
@@ -250,6 +265,7 @@ void actualizarReferenciasTanques(NodoSistema* tablero, Tanque*& tanqueIA, Tanqu
     }
 }
 
+// Función para mover un tanque en el tablero simulado
 void moverseSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     if (!tanque) return;
 
@@ -269,7 +285,7 @@ void moverseSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     destino->setTanque(tanque);
 }
 
-
+// Simulación de disparo
 void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     if (!tanque) return;
 
@@ -494,149 +510,6 @@ vector<EstadoJuego*> generarHijosAvanzados(EstadoJuego* estado) {
     return hijos;
 }
 
-// GENERACIÓN DE HIJOS
-vector<EstadoJuego*> generarHijos(EstadoJuego* estado) {
-    vector<EstadoJuego*> hijos;
-
-    // Determinar el tanque que debe actuar
-    Tanque* tanqueActual = estado->turnoIA ? estado->tanqueIA : estado->tanqueJugador;
-
-    // MOVIMIENTOS PRIORIZADOS
-    // Direcciones ordenadas por prioridad estratégica
-    vector<pair<int, int>> direcciones;
-    
-    if (estado->turnoIA) {
-        // IA usa estrategia más inteligente
-        pair<int, int> posIA = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueIA);
-        pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
-        
-        if (posIA.first != -1 && posJugador.first != -1) {
-            // Ordenar movimientos por prioridad táctica
-            if (estado->tanqueIA->getVida() > estado->tanqueJugador->getVida()) {
-                // Agresivo: acercarse al jugador
-                if (posJugador.first > posIA.first) direcciones.push_back({1, 0}); // derecha
-                if (posJugador.first < posIA.first) direcciones.push_back({-1, 0}); // izquierda
-                if (posJugador.second > posIA.second) direcciones.push_back({0, 1}); // abajo
-                if (posJugador.second < posIA.second) direcciones.push_back({0, -1}); // arriba
-            } else {
-                // Defensivo: alejarse del jugador
-                if (posJugador.first < posIA.first) direcciones.push_back({1, 0}); // derecha
-                if (posJugador.first > posIA.first) direcciones.push_back({-1, 0}); // izquierda
-                if (posJugador.second < posIA.second) direcciones.push_back({0, 1}); // abajo
-                if (posJugador.second > posIA.second) direcciones.push_back({0, -1}); // arriba
-            }
-        }
-    } else {
-        // Jugador usa movimientos normales
-        direcciones = {{0,1}, {0,-1}, {1,0}, {-1,0}};
-    }
-
-    // Asegurar que tenemos todas las direcciones
-    vector<pair<int, int>> todasDirecciones = {{0,1}, {0,-1}, {1,0}, {-1,0}};
-    for (auto& dir : todasDirecciones) {
-        if (find(direcciones.begin(), direcciones.end(), dir) == direcciones.end()) {
-            direcciones.push_back(dir);
-        }
-    }
-
-    // GENERAR MOVIMIENTOS POSIBLES
-    for (auto& dir : direcciones) {
-        NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
-        
-        Tanque* clonIA = nullptr;
-        Tanque* clonJugador = nullptr;
-        actualizarReferenciasTanques(clonTablero, clonIA, clonJugador);
-
-        Tanque* clonActual = estado->turnoIA ? clonIA : clonJugador;
-
-        pair<int, int> pos = obtenerPosicionTanque(clonTablero, clonActual);
-        if (pos.first == -1) continue;
-
-        int nuevaX = pos.first + dir.first;
-        int nuevaY = pos.second + dir.second;
-
-        if (nuevaX >= 0 && nuevaX < 5 && nuevaY >= 0 && nuevaY < 5) {
-            if (esCeldaLibre(clonTablero, nuevaX, nuevaY)) {
-                moverseSimulado(clonActual, clonTablero, nuevaX, nuevaY);
-                
-                EstadoJuego* hijo = new EstadoJuego(clonTablero, clonIA, clonJugador, !estado->turnoIA);
-                hijo->accionAplicada = MOVER;
-                hijo->posAccionX = nuevaX;
-                hijo->posAccionY = nuevaY;
-                hijos.push_back(hijo);
-                continue;
-            }
-        }
-        
-        while (clonTablero) {
-            NodoSistema* temp = clonTablero;
-            clonTablero = clonTablero->getSiguiente();
-            delete temp;
-        }
-    }
-
-    // GENERAR DISPAROS POSIBLES
-    vector<pair<int, int>> objetivos;
-    
-    // Encontrar posición del enemigo para priorizar ataques
-    if (estado->turnoIA) {
-        pair<int, int> posJugador = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueJugador);
-        if (posJugador.first != -1) {
-            objetivos.push_back(posJugador); // Priorizar atacar al jugador
-        }
-    } else {
-        pair<int, int> posIA = obtenerPosicionTanque(estado->tableroClonado, estado->tanqueIA);
-        if (posIA.first != -1) {
-            objetivos.push_back(posIA); // Priorizar atacar a la IA
-        }
-    }
-    
-    // Agregar otras posiciones si es necesario
-    for (int y = 0; y < 5; ++y) {
-        for (int x = 0; x < 5; ++x) {
-            if (find(objetivos.begin(), objetivos.end(), make_pair(x, y)) == objetivos.end()) {
-                objetivos.push_back({x, y});
-            }
-        }
-    }
-
-    for (auto& objetivo : objetivos) {
-        int x = objetivo.first;
-        int y = objetivo.second;
-        
-        NodoSistema* clonTablero = clonarTablero(estado->tableroClonado);
-        
-        Tanque* clonIA = nullptr;
-        Tanque* clonJugador = nullptr;
-        actualizarReferenciasTanques(clonTablero, clonIA, clonJugador);
-
-        Tanque* clonActual = estado->turnoIA ? clonIA : clonJugador;
-
-        NodoSistema* nodoObjetivo = buscarNodo(clonTablero, x, y);
-        if (nodoObjetivo && nodoObjetivo->getTanque() && 
-            nodoObjetivo->getTanque() != clonActual && 
-            nodoObjetivo->getTanque()->getVida() > 0) {
-            
-            dispararSimulado(clonActual, clonTablero, x, y);
-            
-            EstadoJuego* hijo = new EstadoJuego(clonTablero, clonIA, clonJugador, !estado->turnoIA);
-            hijo->accionAplicada = DISPARAR;
-            hijo->posAccionX = x;
-            hijo->posAccionY = y;
-            hijos.push_back(hijo);
-            continue;
-        }
-        
-        while (clonTablero) {
-            NodoSistema* temp = clonTablero;
-            clonTablero = clonTablero->getSiguiente();
-            delete temp;
-        }
-    }
-
-    return hijos;
-}
-
 // FUNCIÓN DE EVALUACIÓN
 int evaluarEstadoAvanzado(EstadoJuego* estado) {
     int vidaIA = 0, vidaJugador = 0;
@@ -757,92 +630,6 @@ int evaluarEstadoAvanzado(EstadoJuego* estado) {
     return evaluacion;
 }
 
-// FUNCIÓN DE EVALUACIÓN MEJORADA
-int evaluarEstado(EstadoJuego* estado) {
-    int vidaIA = 0, vidaJugador = 0;
-    int terrenoIA = 0, terrenoJugador = 0;
-    int distanciaTotal = 0;
-    int ventajaPosicional = 0;
-    int amenazasIA = 0, amenazasJugador = 0;
-
-    NodoSistema* nodoIA = nullptr;
-    NodoSistema* nodoJugador = nullptr;
-
-    // Buscar tanques en el tablero clonado
-    NodoSistema* actual = estado->tableroClonado;
-    while (actual) {
-        Tanque* t = actual->getTanque();
-        if (t) {
-            if (t->esIA()) {
-                vidaIA = t->getVida();
-                terrenoIA = actual->getTipoTerreno();
-                nodoIA = actual;
-            } else {
-                vidaJugador = t->getVida();
-                terrenoJugador = actual->getTipoTerreno();
-                nodoJugador = actual;
-            }
-        }
-        actual = actual->getSiguiente();
-    }
-
-    // Calcular distancia
-    if (nodoIA && nodoJugador) {
-        int dx = abs(nodoIA->getPosX() - nodoJugador->getPosX());
-        int dy = abs(nodoIA->getPosY() - nodoJugador->getPosY());
-        distanciaTotal = dx + dy;
-        
-        
-        // 1. Ventaja posicional
-        int centroIA = abs(nodoIA->getPosX() - 2) + abs(nodoIA->getPosY() - 2);
-        int centroJugador = abs(nodoJugador->getPosX() - 2) + abs(nodoJugador->getPosY() - 2);
-        ventajaPosicional = (centroJugador - centroIA) * 5;
-        
-        // 2. Amenazas directas (puede atacar en el próximo turno)
-        if (distanciaTotal == 1) {
-            amenazasIA += 50; // IA puede atacar al jugador
-        }
-        
-        // 3. Esquinas y bordes (posiciones defensivas)
-        bool iaEnEsquina = (nodoIA->getPosX() == 0 || nodoIA->getPosX() == 4) && 
-                          (nodoIA->getPosY() == 0 || nodoIA->getPosY() == 4);
-        bool jugadorEnEsquina = (nodoJugador->getPosX() == 0 || nodoJugador->getPosX() == 4) && 
-                               (nodoJugador->getPosY() == 0 || nodoJugador->getPosY() == 4);
-        
-        if (iaEnEsquina) ventajaPosicional += 10; // IA en esquina es bueno defensivamente
-        if (jugadorEnEsquina) ventajaPosicional -= 10; // Jugador en esquina es malo para la IA
-    }
-
-    // CONDICIONES DE VICTORIA/DERROTA
-    if (vidaIA <= 0) return -10000; // IA pierde
-    if (vidaJugador <= 0) return 10000; // IA gana
-
-    int evaluacion = 0;
-    
-    // Prioridad 1: Diferencia de vida (más importante)
-    evaluacion += (vidaIA - vidaJugador) * 20;
-    
-    // Prioridad 2: Ventaja de terreno
-    evaluacion += (terrenoIA - terrenoJugador) * 8;
-    
-    // Prioridad 3: Control posicional
-    evaluacion += ventajaPosicional;
-    
-    // Prioridad 4: Distancia estratégica
-    if (vidaIA > vidaJugador) {
-        // Si IA tiene más vida, ser agresivo (acercarse)
-        evaluacion -= distanciaTotal * 3;
-    } else {
-        // Si IA tiene menos vida, ser defensivo (alejarse)
-        evaluacion += distanciaTotal * 2;
-    }
-    
-    // Prioridad 5: Amenazas inmediatas
-    evaluacion += amenazasIA;
-    
-    return evaluacion;
-}
-
 // MINIMAX ULTRA INTELIGENTE CON OPTIMIZACIONES
 int minimaxAvanzado(EstadoJuego* estado, int profundidad, int alpha, int beta, bool esMaximizador, bool debug = false) {
     // Profundidad adaptativa según la situación
@@ -913,76 +700,13 @@ int minimaxAvanzado(EstadoJuego* estado, int profundidad, int alpha, int beta, b
     return mejorValor;
 }
 
-// MINIMAX MEJORADO CON MAYOR PROFUNDIDAD
-int minimax(EstadoJuego* estado, int profundidad, int alpha, int beta, bool debug = false) {
-    // Incrementar profundidad base para mayor dificultad
-    if (profundidad == 0) {
-        int val = evaluarEstado(estado);
-        if (debug) {
-            cout << "Evaluando estado hoja con valor: " << val << endl;
-        }
-        return val;
-    }
-
-    vector<EstadoJuego*> hijos = generarHijos(estado);
-    
-    if (hijos.empty()) {
-        int val = evaluarEstado(estado);
-        if (debug) {
-            cout << "No hay movimientos disponibles, valor: " << val << endl;
-        }
-        return val;
-    }
-
-    int mejorValor;
-    
-    if (estado->turnoIA) {
-        mejorValor = INT_MIN;
-        for (EstadoJuego* hijo : hijos) {
-            int eval = minimax(hijo, profundidad - 1, alpha, beta, debug);
-            mejorValor = max(mejorValor, eval);
-            alpha = max(alpha, eval);
-            
-            if (debug) {
-                string accionStr = (hijo->accionAplicada == MOVER) ? "MOVER" : "DISPARAR";
-                cout << "IA - " << accionStr << " a (" << hijo->posAccionX << "," 
-                     << hijo->posAccionY << ") => Valor: " << eval << endl;
-            }
-            
-            if (beta <= alpha) {
-                if (debug) cout << "Poda alfa-beta" << endl;
-                break;
-            }
-        }
-    } else {
-        mejorValor = INT_MAX;
-        for (EstadoJuego* hijo : hijos) {
-            int eval = minimax(hijo, profundidad - 1, alpha, beta, debug);
-            mejorValor = min(mejorValor, eval);
-            beta = min(beta, eval);
-            
-            if (debug) {
-                string accionStr = (hijo->accionAplicada == MOVER) ? "MOVER" : "DISPARAR";
-                cout << "Jugador - " << accionStr << " a (" << hijo->posAccionX << "," 
-                     << hijo->posAccionY << ") => Valor: " << eval << endl;
-            }
-            
-            if (beta <= alpha) {
-                if (debug) cout << "Poda alfa-beta" << endl;
-                break;
-            }
-        }
-    }
-
-    for (EstadoJuego* hijo : hijos) {
-        delete hijo;
-    }
-
-    return mejorValor;
-}
-
 // FUNCIÓN PRINCIPAL DE LA IA ULTRA DIFÍCIL
+#include <chrono>  // Agregar esta librería al inicio del archivo
+
 pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoActual, int profundidadBase = 8) {
+    // Iniciar medición de tiempo
+    auto tiempoInicio = chrono::high_resolution_clock::now();
+    
     // Actualizar memoria táctica
     pair<int, int> posJugador = obtenerPosicionTanque(estadoActual->tableroClonado, estadoActual->tanqueJugador);
     if (posJugador.first != -1) {
@@ -1008,6 +732,10 @@ pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoAct
     vector<EstadoJuego*> hijos = generarHijosAvanzados(estadoActual);
     
     if (hijos.empty()) {
+        // Calcular tiempo transcurrido para caso especial
+        auto tiempoFin = chrono::high_resolution_clock::now();
+        auto duracion = chrono::duration_cast<chrono::milliseconds>(tiempoFin - tiempoInicio);
+        cout << "Tiempo de decisión (sin hijos): " << duracion.count() << " ms" << endl;
         return {ESPERAR, {-1, -1}};
     }
     
@@ -1041,9 +769,14 @@ pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoAct
         memoriaIA.disparosFallidos++; // Asumimos fallo, se corregirá si acierta
     }
     
+    // Calcular tiempo transcurrido
+    auto tiempoFin = chrono::high_resolution_clock::now();
+    auto duracion = chrono::duration_cast<chrono::milliseconds>(tiempoFin - tiempoInicio);
+    
     cout << "DECISIÓN FINAL: " << (mejorAccion == MOVER ? "MOVER" : "DISPARAR") 
          << " a (" << mejorPosicion.first << "," << mejorPosicion.second 
          << ") con valor: " << mejorValor << endl;
+    cout << "⏱️  TIEMPO DE DECISIÓN: " << duracion.count() << " milisegundos" << endl;
     cout << "==========================================\n" << endl;
     
     // Limpiar memoria
@@ -1054,64 +787,7 @@ pair<Accion, pair<int, int>> encontrarMejorJugadaAvanzada(EstadoJuego* estadoAct
     return {mejorAccion, mejorPosicion};
 }
 
-// FUNCIÓN PARA ACTUALIZAR ESTADÍSTICAS DE LA IA
-void actualizarEstadisticasIA(bool disparoExitoso) {
-    if (disparoExitoso) {
-        memoriaIA.disparosExitosos++;
-        if (memoriaIA.disparosFallidos > 0) {
-            memoriaIA.disparosFallidos--; // Corregir asunción previa
-        }
-    }
-}
-
-// FUNCIÓN PARA RESETEAR MEMORIA ENTRE PARTIDAS
-void resetearMemoriaIA() {
-    memoriaIA.patronesJugador.clear();
-    memoriaIA.posicionesVisitadas.clear();
-    memoriaIA.movimientosAgresivos = 0;
-    memoriaIA.movimientosDefensivos = 0;
-    memoriaIA.disparosExitosos = 0;
-    memoriaIA.disparosFallidos = 0;
-}
-
-// FUNCIÓN PARA USAR LA IA MEJORADA
-pair<Accion, pair<int, int>> encontrarMejorJugada(EstadoJuego* estadoActual, int profundidad = 6) {
-    vector<EstadoJuego*> hijos = generarHijos(estadoActual);
-    
-    if (hijos.empty()) {
-        return {ESPERAR, {-1, -1}};
-    }
-
-    int mejorValor = INT_MIN;
-    EstadoJuego* mejorHijo = nullptr;
-
-    for (EstadoJuego* hijo : hijos) {
-        int valor = minimax(hijo, profundidad - 1, INT_MIN, INT_MAX);
-        
-        cout << "Evaluando acción: " << (hijo->accionAplicada == MOVER ? "MOVER" : "DISPARAR")
-             << " a (" << hijo->posAccionX << "," << hijo->posAccionY 
-             << ") => Valor: " << valor << endl;
-        
-        if (valor > mejorValor) {
-            mejorValor = valor;
-            mejorHijo = hijo;
-        }
-    }
-
-    Accion mejorAccion = mejorHijo->accionAplicada;
-    pair<int, int> mejorPosicion = {mejorHijo->posAccionX, mejorHijo->posAccionY};
-
-    for (EstadoJuego* hijo : hijos) {
-        delete hijo;
-    }
-
-    return {mejorAccion, mejorPosicion};
-}
-
-// FUNCIONES PARA EJECUTAR ACCIONES REALES
-void moverseSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY);
-void dispararSimulado(Tanque* tanque, NodoSistema* tablero, int posX, int posY);
-
+// Función para ejecutar un movimiento en el tablero real
 bool ejecutarMovimiento(NodoSistema* tableroReal, Tanque* tanque, int nuevaX, int nuevaY) {
     // Validar que la nueva posición esté libre
     if (!esCeldaLibre(tableroReal, nuevaX, nuevaY)) return false;
@@ -1123,6 +799,7 @@ bool ejecutarMovimiento(NodoSistema* tableroReal, Tanque* tanque, int nuevaX, in
     return true;
 }
 
+// Función para ejecutar un disparo en el tablero real
 bool ejecutarDisparo(NodoSistema* tableroReal, Tanque* atacante, int objetivoX, int objetivoY) {
     // Encontrar el nodo objetivo
     NodoSistema* nodoObjetivo = buscarNodo(tableroReal, objetivoX, objetivoY);
@@ -1138,56 +815,6 @@ bool ejecutarDisparo(NodoSistema* tableroReal, Tanque* atacante, int objetivoX, 
 
     cout << "Disparo realizado a (" << objetivoX << "," << objetivoY << ")" << endl;
     return true;
-}
-
-// Función principal para que la IA tome una decisión y la ejecute
-bool turnoIA(NodoSistema* tableroReal, Tanque* tanqueIA, Tanque* tanqueJugador, int profundidad = 7) {
-    cout << "\n=== TURNO DE LA IA ===" << endl;
-    
-    // Crear estado actual
-    EstadoJuego* estadoActual = new EstadoJuego(tableroReal, tanqueIA, tanqueJugador, true);
-    
-    // Encontrar la mejor jugada
-    auto mejorJugada = encontrarMejorJugada(estadoActual, profundidad);
-    
-    Accion accion = mejorJugada.first;
-    int x = mejorJugada.second.first;
-    int y = mejorJugada.second.second;
-    
-    bool exito = false;
-    
-    // EJECUTAR LA ACCIÓN EN EL TABLERO REAL
-    if (accion == MOVER) {
-        cout << "IA decide MOVERSE a (" << x << "," << y << ")" << endl;
-        exito = ejecutarMovimiento(tableroReal, tanqueIA, x, y);
-    } 
-    else if (accion == DISPARAR) {
-        cout << "IA decide DISPARAR a (" << x << "," << y << ")" << endl;
-        exito = ejecutarDisparo(tableroReal, tanqueIA, x, y);
-    }
-    else {
-        cout << "IA decide ESPERAR" << endl;
-        exito = true; // Esperar siempre es válido
-    }
-    
-    delete estadoActual;
-    
-    if (!exito) {
-        cout << "Error: No se pudo ejecutar la acción de la IA" << endl;
-    }
-    
-    return exito;
-}
-
-void recorrerTablero(NodoSistema* head) {
-    NodoSistema* temp = head;
-    cout << "--- Tablero generado ---" << endl;
-    while (temp != nullptr) {
-        cout << "Nodo ID: " << temp->getIdNodo()
-             << ", Posicion: (" << temp->getPosX() << ", " << temp->getPosY() << ")"
-             << ", Tipo de Terreno: " << temp->getTipoTerreno() << endl;
-        temp = temp->getSiguiente();
-    }
 }
 
 // Función que agrega un nodo al final de la lista doblemente enlazada
@@ -1338,9 +965,7 @@ void moverse(Tanque* tanque, NodoSistema* tablero, int posX, int posY) {
     cout << "Tanque movido exitosamente a la posición: (" << posX << ", " << posY << ")" << endl;
 }
 
-
-
-
+// Función que muestra el menú de selección de tanques del jugador
 bool mostrarMenuSeleccionTanquesJugador(
     sf::RenderWindow& window,
     sf::Font& font,
@@ -1935,7 +1560,8 @@ void desplegarTablero(
 
 }
 
-
+// Función que muestra el menú de selección de dificultad
+// Retorna 0 para fácil, 1 para media, 2 para difícil, -
 int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {"Facil", "Media", "Dificil"};
     int seleccion = 0;
@@ -2016,6 +1642,9 @@ int mostrarMenuDificultad(sf::RenderWindow& window, sf::Font& font) {
     return -2;
 }
 
+// Función que muestra la pantalla de inicio del juego
+// Muestra el título y un mensaje de inicio, y espera a que se presione una tecla para continuar
+// Retorna cuando se presiona una tecla o se cierra la ventana
 void mostrarPantallaInicio(sf::RenderWindow& window, sf::Font& font) {
     sf::Text titulo("FERRUM BELLUM", font);
     titulo.setFillColor(sf::Color(110, 180, 100));
@@ -2086,6 +1715,7 @@ void aplicarConfiguracionPantalla(sf::RenderWindow& window) {
 }
 
 // MENÚ DE CONFIGURACIÓN
+// Muestra un menú de configuración donde se puede ajustar el volumen de la música y la resolución
 int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {
         "Volumen Musica",
@@ -2234,6 +1864,7 @@ int mostrarMenuConfiguracion(sf::RenderWindow& window, sf::Font& font) {
 }
 
 // MENÚ PRINCIPAL
+// Muestra el menú principal del juego con opciones para jugar, configuración y salir
 int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
     std::vector<std::string> opciones = {"Jugar", "Configuracion", "Salir"};
     int seleccion = 0;
@@ -2314,20 +1945,9 @@ int mostrarMenuPrincipal(sf::RenderWindow& window, sf::Font& font) {
     return 2;
 }
 
-// Estructura para almacenar una acción planificada
-struct AccionPlanificada {
-    Tanque* tanque;
-    std::string tipoAccion; // "Moverse" o "Atacar"
-    int coordX;
-    int coordY;
-    bool esValida;
-    
-    AccionPlanificada() : tanque(nullptr), tipoAccion(""), coordX(-1), coordY(-1), esValida(false) {}
-    AccionPlanificada(Tanque* t, std::string tipo, int x, int y) 
-        : tanque(t), tipoAccion(tipo), coordX(x), coordY(y), esValida(true) {}
-};
-
 // Función para obtener la acción de la IA
+// Esta función planifica la acción de la IA sin ejecutarla, retornando un objeto AccionPlanificada
+// que contiene el tanque, la acción y las coordenadas objetivo.
 AccionPlanificada obtenerAccionIA(
     std::stack<Tanque*>& tanquesIA,
     NodoSistema* tablero,
@@ -2347,7 +1967,15 @@ AccionPlanificada obtenerAccionIA(
     if (tanquesDisponibles.empty()) return AccionPlanificada();
 
     // Elegir un tanque aleatorio
-    Tanque* tanqueIA = tanquesDisponibles[rand() % tanquesDisponibles.size()];
+    // Elegir tanque IA de menor vida
+    Tanque* tanqueIA = tanquesDisponibles[0];
+    for (Tanque* tanque : tanquesDisponibles) {
+        if (tanque->getVida() < tanqueIA->getVida()) {
+            tanqueIA = tanque;
+        }
+    }
+
+    //Tanque* tanqueIA = tanquesDisponibles[rand() % tanquesDisponibles.size()];
 
     // Encontrar el tanque del jugador
     Tanque* tanqueJugador = nullptr;
@@ -2390,6 +2018,7 @@ AccionPlanificada obtenerAccionIA(
 }
 
 // Función modificada del menú del jugador para retornar la acción en lugar de ejecutarla
+// Esta función permite al jugador planificar su acción sin ejecutarla inmediatamente.
 AccionPlanificada menuAccionesJugadorSimultaneo(
     sf::RenderWindow& window,
     sf::Font& font,
@@ -2612,7 +2241,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
         panelInfo.setOutlineThickness(2);
         window.draw(panelInfo);
 
-        int fontSize = std::min(16, std::max(12, static_cast<int>(windowSize.x / 80)));
+        int fontSize = std::min(20, std::max(16, static_cast<int>(windowSize.x / 80)));
         sf::Text tituloPanel("ESTADO TANQUES: ", font, fontSize);
         tituloPanel.setFillColor(COLOR_TITULO);
         tituloPanel.setPosition(20, 15);
@@ -2621,7 +2250,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
 
         float posicionX = 20 + tituloPanel.getLocalBounds().width + 10;
         float posicionY = 15;
-        int tanqueFontSize = std::min(14, std::max(10, static_cast<int>(windowSize.x / 90)));
+        int tanqueFontSize = std::min(18, std::max(14, static_cast<int>(windowSize.x / 90)));
         
         for (size_t i = 0; i < tanquesJugador.size(); ++i) {
             int damage = tanquesJugador[i]->getDanio();
@@ -2695,9 +2324,9 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
             window.draw(previewRect);
         }
 
-        int tituloSize = std::min(18, std::max(12, menuWidth / 18));
-        int textoSize = std::min(15, std::max(11, menuWidth / 22));
-        int controlSize = std::min(13, std::max(9, menuWidth / 26));
+        int tituloSize = std::min(20, std::max(16, menuWidth / 18));
+        int textoSize = std::min(18, std::max(16, menuWidth / 22));
+        int controlSize = std::min(17, std::max(15, menuWidth / 26));
 
         if (paso == 3) {
             sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
@@ -2891,6 +2520,7 @@ AccionPlanificada menuAccionesJugadorSimultaneo(
 }
 
 // Función para ejecutar las acciones simultáneamente
+// Esta función toma las acciones planificadas del jugador y de la IA, y las ejecuta
 void ejecutarAccionesSimultaneas(
     AccionPlanificada accionJugador,
     AccionPlanificada accionIA,
@@ -2934,480 +2564,7 @@ void ejecutarAccionesSimultaneas(
     std::cout << "=== FIN DE ACCIONES SIMULTÁNEAS ===\n" << std::endl;
 }
 
-
-bool menuAccionesJugador(
-    sf::RenderWindow& window,
-    sf::Font& font,
-    std::stack<Tanque*> tanquesJugadorStack,
-    NodoSistema* tablero,
-    int filas,
-    int columnas,
-    int cellSize,
-    sf::Texture& texturaTerreno1,
-    sf::Texture& texturaTerreno2,
-    sf::Texture& texturaTerreno3,
-    sf::Texture& texturaTanqueLigeroJugador,
-    sf::Texture& texturaTanqueMedianoJugador,
-    sf::Texture& texturaTanquePesadoJugador,
-    sf::Texture& texturaTanqueLigeroIA,
-    sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA,
-    sf::Texture& texturaExplosionTerreno,
-    sf::Texture& texturaExplosionTanque,
-    sf::Texture& texturaTanqueLigeroJugadorDestruido,
-    sf::Texture& texturaTanqueMedianoJugadorDestruido,
-    sf::Texture& texturaTanquePesadoJugadorDestruido,
-    sf::Texture& texturaTanqueLigeroIADestruido,
-    sf::Texture& texturaTanqueMedianoIADestruido,
-    sf::Texture& texturaTanquePesadoIADestruido
-) {
-
-    std::vector<Tanque*> tanquesJugador;
-    {
-        std::stack<Tanque*> copia = tanquesJugadorStack;
-        while (!copia.empty()) {
-            tanquesJugador.push_back(copia.top());
-            copia.pop();
-        }
-    }
-    std::reverse(tanquesJugador.begin(), tanquesJugador.end());
-    if (tanquesJugador.empty()) return true;
-
-    // Encuentra el primer tanque vivo
-    int indiceTanque = 0;
-    for (size_t i = 0; i < tanquesJugador.size(); ++i) {
-        if (tanquesJugador[i]->getVida() > 0) {
-            indiceTanque = i;
-            break;
-        }
-    }
-
-    int paso             = 0;
-    std::string accion   = "Moverse";
-    int coordX = 0, coordY = 0;
-    bool coordYselect    = true;
-    bool turnoCompletado = false;
-    bool errorCoord      = false;
-    int opcionConfirm    = 0;
-
-    const int menuX = columnas * cellSize + 70;
-    const int menuY = 100;
-    const int offsetTableroX = 50;
-    const int offsetTableroY = 90;
-    const int menuWidth = 230;
-    const int menuHeight = 160;
-    const int menuPadding = 10;
-
-
-    sf::RectangleShape previewRect({float(cellSize - 2), float(cellSize - 2)});
-    previewRect.setOutlineThickness(1);
-    previewRect.setOutlineColor(sf::Color::Black);
-
-
-    sf::RectangleShape selectorRect({float(cellSize), float(cellSize)});
-    selectorRect.setFillColor(sf::Color::Transparent);
-    selectorRect.setOutlineThickness(3);
-    selectorRect.setOutlineColor(sf::Color::Blue);
-
-    while (window.isOpen() && !turnoCompletado) {
-
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
-                window.close();
-                return true;
-            }
-            
-            if (event.type == sf::Event::KeyPressed) {
-
-                if (event.key.code == sf::Keyboard::Escape) {
-                    if (paso < 2) {
-                        paso = 3;
-                        opcionConfirm = 0;
-                    } else {
-                        paso = 1;
-                        coordX = coordY = 0;
-                        coordYselect = true;
-                        errorCoord = false;
-                    }
-                    continue;
-                }
-
-                if (paso == 3) {
-                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
-                        opcionConfirm = 1 - opcionConfirm;
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        if (opcionConfirm == 0) return false;
-                        paso = 0;
-                    }
-                    continue;
-                }
-
-                if (paso == 0) {
-                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
-                        int direccion = (event.key.code == sf::Keyboard::Up) ? -1 : 1;
-                        int intentos = 0;
-                        do {
-                            indiceTanque = (indiceTanque + direccion + tanquesJugador.size()) % tanquesJugador.size();
-                            intentos++;
-                        } while (tanquesJugador[indiceTanque]->getVida() <= 0 && intentos < tanquesJugador.size());
-                    } else if (event.key.code == sf::Keyboard::Enter) {
-                        if (tanquesJugador[indiceTanque]->getVida() > 0) {
-                            paso = 1;
-                            errorCoord = false;
-                        }
-                    }
-                }
-
-                else if (paso == 1) {
-                    if (event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down)
-                        accion = (accion == "Moverse") ? "Atacar" : "Moverse";
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        paso = 2; coordX = coordY = 0; coordYselect = false; errorCoord = false;
-                    }
-                }
-                else if (paso == 2) {
-                    int digit = -1;
-                    if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9)
-                        digit = event.key.code - sf::Keyboard::Num0;
-                    else if (event.key.code >= sf::Keyboard::Numpad0 && event.key.code <= sf::Keyboard::Numpad9)
-                        digit = event.key.code - sf::Keyboard::Numpad0;
-                    if (digit >= 0 && digit < 5) {
-                        if (!coordYselect && coordX == 0) coordX = digit;
-                        else if (coordYselect && coordY == 0) coordY = digit;
-                    }
-                    else if (event.key.code == sf::Keyboard::Space ||
-                             event.key.code == sf::Keyboard::Left ||
-                             event.key.code == sf::Keyboard::Right) {
-                        coordYselect = !coordYselect;
-                    }
-                    else if (event.key.code == sf::Keyboard::BackSpace) {
-                        if (coordYselect) coordY = 0; else coordX = 0;
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter) {
-                        if (coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
-                            Tanque* t = tanquesJugador[indiceTanque];
-                            if (accion == "Moverse") moverse(t, tablero, coordX, coordY);
-                            else disparar(t, tablero, coordX, coordY);
-                            turnoCompletado = true;
-                        } else errorCoord = true;
-                    }
-                }
-            }
-        }
-
-        window.clear();
-
-        {
-            sf::RectangleShape infoPanel({float(window.getSize().x), 50.f});
-            infoPanel.setPosition(0, 0);
-            infoPanel.setFillColor({30,30,30,220});
-            infoPanel.setOutlineColor(sf::Color::White);
-            infoPanel.setOutlineThickness(2);
-            window.draw(infoPanel);
-
-
-            for (size_t i = 0; i < tanquesJugador.size(); ++i) {
-                int dmg = tanquesJugador[i]->getDanio();
-                std::string tipo = (dmg == 100 ? "Ligero" : dmg == 150 ? "Mediano" : "Pesado");
-                sf::Text info("Tanque " + std::to_string(i+1) +
-                              " (" + tipo + ") Vida: " + std::to_string(tanquesJugador[i]->getVida()),
-                              font, 16);
-                info.setPosition(20 + i*250, 15);
-                if (tanquesJugador[i]->getVida() <= 0)
-                    info.setFillColor(sf::Color(128, 128, 128));  // Gris para tanque destruido
-                else if (i == indiceTanque)
-                    info.setFillColor(sf::Color::Yellow);         // Seleccionado
-                else
-                    info.setFillColor(sf::Color::White);
-
-                window.draw(info);
-            }
-        }
-
-
-        desplegarTablero(window, font, filas, columnas, cellSize, tablero,
-                         texturaTerreno1, texturaTerreno2, texturaTerreno3,
-                         texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-                         texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
-                         texturaExplosionTerreno, texturaExplosionTanque, texturaTanqueLigeroJugadorDestruido,
-                         texturaTanqueMedianoJugadorDestruido, texturaTanquePesadoJugadorDestruido, texturaTanqueLigeroIADestruido,
-                         texturaTanqueMedianoIADestruido, texturaTanquePesadoIADestruido);
-
-
-        {
-            Tanque* sel = tanquesJugador[indiceTanque];
-            NodoSistema* nodo = tablero;
-            while (nodo) {
-                if (nodo->getTanque() == sel) {
-                    int selX = nodo->getPosX();
-                    int selY = nodo->getPosY();
-                    selectorRect.setPosition(
-                        float(selX*cellSize + offsetTableroX),
-                        float(selY*cellSize + offsetTableroY)
-                    );
-                    window.draw(selectorRect);
-                    break;
-                }
-                nodo = nodo->getSiguiente();
-            }
-        }
-
-        // Preview movimiento/disparo
-        if (paso == 2 && coordX >= 0 && coordX < columnas && coordY >= 0 && coordY < filas) {
-            previewRect.setPosition(
-                float(coordX*cellSize + offsetTableroX + 1),
-                float(coordY*cellSize + offsetTableroY + 1)
-            );
-            previewRect.setFillColor(
-                (accion=="Moverse") ? sf::Color(0,255,0,100) : sf::Color(255,0,0,100)
-            );
-            window.draw(previewRect);
-        }
-
-        // Menú de confirmación ESC
-        if (paso == 3) {
-            sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
-            bg.setPosition(menuX-menuPadding, menuY-menuPadding);
-            bg.setFillColor({50,50,50,200});
-            bg.setOutlineColor(sf::Color::White);
-            bg.setOutlineThickness(2);
-            window.draw(bg);
-
-            sf::Text titulo("AVISO DE EMERGENCIA SOLDADO", font, 20);
-            titulo.setFillColor(sf::Color::Red);
-            titulo.setPosition(menuX, menuY);
-            window.draw(titulo);
-
-            sf::Text pregunta("¿DESEAS RENDIRTE ANTE EL ENEMIGO?", font, 18);
-            pregunta.setFillColor(sf::Color::White);
-            pregunta.setPosition(menuX, menuY + 30);
-            window.draw(pregunta);
-
-            sf::Text si("SI", font, 22), no("NO", font, 22);
-            si.setPosition(menuX, menuY + 70);
-            no.setPosition(menuX, menuY + 100);
-            if (opcionConfirm == 0) si.setStyle(sf::Text::Underlined | sf::Text::Bold);
-            else                    no.setStyle(sf::Text::Underlined | sf::Text::Bold);
-            si.setFillColor(sf::Color::White);
-            no.setFillColor(sf::Color::White);
-            window.draw(si);
-            window.draw(no);
-        }
-        else {
-            // Menú normal
-            sf::RectangleShape bg({float(menuWidth), float(menuHeight)});
-            bg.setPosition(menuX-menuPadding, menuY-menuPadding);
-            bg.setFillColor({50,50,50,200});
-            bg.setOutlineColor(sf::Color::White);
-            bg.setOutlineThickness(2);
-            window.draw(bg);
-
-            sf::Text menuTxt;
-            menuTxt.setFont(font);
-            menuTxt.setCharacterSize(20);
-            menuTxt.setFillColor(sf::Color::White);
-            menuTxt.setPosition(menuX, menuY);
-
-            if (paso == 0) {
-                menuTxt.setString(
-                    "SELECCIONA TANQUE:\n"
-                    "(ARRIBA/ABAJO)\n"
-                    "ENTER=OK  ESC=Salir"
-                );
-            } else if (paso == 1) {
-                menuTxt.setString(
-                    std::string((accion=="Moverse") ? "> Moverse\n" : "  Moverse\n") +
-                    std::string((accion=="Atacar")  ? "> Atacar\n"  : "  Atacar\n") +
-                    "\nENTER=OK  ESC=Atras"
-                );
-            } else {
-                menuTxt.setString(
-                    "Ingresa coordenadas:\n" +
-                    std::string("X: " + std::to_string(coordX) + "  Y: " + std::to_string(coordY)) +
-                    "\nSPACE/LEFT/RIGHT alternar\nENTER=OK  ESC=Atras"
-                );
-            }
-            window.draw(menuTxt);
-        }
-
-        // Sección explosión
-        if (ultimaExplosion != NINGUNA) {
-            sf::Sprite spr; std::string msg;
-            if (ultimaExplosion == TERRENO) {
-                spr.setTexture(texturaExplosionTerreno);
-                msg = "Disparo acerto al terreno";
-            } else {
-                spr.setTexture(texturaExplosionTanque);
-                msg = "Disparo acerto a un tanque";
-            }
-            float exX = 475, exY = menuY + menuHeight + 50;
-            spr.setScale(1.5f, 1.5f);
-            spr.setPosition(exX, exY);
-            window.draw(spr);
-
-            sf::Text te(msg, font, 20);
-            te.setFillColor(sf::Color::White);
-            te.setPosition(exX + 100, exY + 80);
-            window.draw(te);
-        }
-
-        window.display();
-    }
-
-    return true;
-}
-
-// Función auxiliar para movimiento aleatorio cuando minimax falla
-void movimientoAleatorioFallback(Tanque* tanqueIA, NodoSistema* tablero, int filas, int columnas) {
-    // Encontrar nodo actual del tanque
-    NodoSistema* origen = nullptr;
-    NodoSistema* actual = tablero;
-    while (actual) {
-        if (actual->getTanque() == tanqueIA) {
-            origen = actual;
-            break;
-        }
-        actual = actual->getSiguiente();
-    }
-    
-    if (!origen) return;
-
-    // Decidir aleatoriamente: 0 = mover, 1 = disparar
-    int accion = rand() % 2;
-
-    if (accion == 0) {
-        // Intentar moverse
-        std::vector<NodoSistema*> opcionesMovimiento;
-        
-        // Direcciones: arriba, abajo, izquierda, derecha
-        int direcciones[4][2] = {{0,1}, {0,-1}, {1,0}, {-1,0}};
-        
-        for (int i = 0; i < 4; i++) {
-            int newX = origen->getPosX() + direcciones[i][0];
-            int newY = origen->getPosY() + direcciones[i][1];
-
-            if (newX >= 0 && newX < columnas && newY >= 0 && newY < filas) {
-                NodoSistema* destino = buscarNodo(tablero, newX, newY);
-                if (destino && destino->getTanque() == nullptr) {
-                    opcionesMovimiento.push_back(destino);
-                }
-            }
-        }
-
-        if (!opcionesMovimiento.empty()) {
-            NodoSistema* destino = opcionesMovimiento[rand() % opcionesMovimiento.size()];
-            moverseSimulado(tanqueIA, tablero, destino->getPosX(), destino->getPosY());
-            std::cout << "Movimiento aleatorio a (" << destino->getPosX() << "," << destino->getPosY() << ")" << std::endl;
-        }
-    } else {
-        // Intentar disparar
-        std::vector<NodoSistema*> enemigosVivos;
-        NodoSistema* temp = tablero;
-        while (temp) {
-            Tanque* t = temp->getTanque();
-            if (t && !t->esIA() && t->getVida() > 0) {
-                enemigosVivos.push_back(temp);
-            }
-            temp = temp->getSiguiente();
-        }
-
-        if (!enemigosVivos.empty()) {
-            NodoSistema* objetivo = enemigosVivos[rand() % enemigosVivos.size()];
-            dispararSimulado(tanqueIA, tablero, objetivo->getPosX(), objetivo->getPosY());
-            std::cout << "Disparo aleatorio a (" << objetivo->getPosX() << "," << objetivo->getPosY() << ")" << std::endl;
-        }
-    }
-}
-
-void accionesIADificil(
-    std::stack<Tanque*>& tanquesIA,
-    NodoSistema* tablero,
-    int filas,
-    int columnas
-) {
-    // Obtener tanques vivos
-    std::stack<Tanque*> copia = tanquesIA;
-    std::vector<Tanque*> tanquesDisponibles;
-    cout<<"aaaaaaaaaaa"<<endl;
-
-    while (!copia.empty()) {
-        if (copia.top()->getVida() > 0)
-            tanquesDisponibles.push_back(copia.top());
-        copia.pop();
-    }
-
-    if (tanquesDisponibles.empty()) return;
-
-    // Elegir un tanque aleatorio
-    Tanque* tanqueIA = tanquesDisponibles[rand() % tanquesDisponibles.size()];
-
-    // Encontrar el tanque del jugador
-    Tanque* tanqueJugador = nullptr;
-    NodoSistema* temp = tablero;
-    while (temp) {
-        Tanque* t = temp->getTanque();
-        if (t && !t->esIA() && t->getVida() > 0) {
-            tanqueJugador = t;
-            break;
-        }
-        temp = temp->getSiguiente();
-    }
-
-    cout<<"aaaaaaaax2"<<endl;
-    if (!tanqueJugador) {
-        std::cout << "No hay tanques enemigos vivos" << std::endl;
-        return;
-    }
-
-
-    EstadoJuego* estadoActual = new EstadoJuego(tablero, tanqueIA, tanqueJugador, true);
-    
-
-    cout<<"aaaaaaaax2.5"<<endl;
-    // ENCONTRAR LA MEJOR JUGADA
-    //auto mejorJugada = encontrarMejorJugada(estadoActual, 7); // profundidad 4
-    auto mejorJugada = encontrarMejorJugadaAvanzada(estadoActual, 7); // profundidad 4
-    
-
-    cout<<"aaaaaaaax2.6"<<endl;
-    Accion mejorAccion = mejorJugada.first;
-    int mejorX = mejorJugada.second.first;
-    int mejorY = mejorJugada.second.second;
-
-
-    cout<<"aaaaaaaax2.7"<<endl;
-    // EJECUTAR LA ACCIÓN EN EL TABLERO REAL
-    bool exito = false;
-    
-
-    cout<<"aaaaaaaax3"<<endl;
-    if (mejorAccion == MOVER) {
-        std::cout << "IA decide MOVERSE a (" << mejorX << "," << mejorY << ")" << std::endl;
-        exito = ejecutarMovimiento(tablero, tanqueIA, mejorX, mejorY);
-    } 
-    else if (mejorAccion == DISPARAR) {
-        std::cout << "IA decide DISPARAR a (" << mejorX << "," << mejorY << ")" << std::endl;
-        exito = ejecutarDisparo(tablero, tanqueIA, mejorX, mejorY);
-    }
-    else {
-        std::cout << "IA decide ESPERAR" << std::endl;
-        exito = true; // Esperar siempre es válido
-    }
-
-    if (!exito) {
-        std::cout << "Error: No se pudo ejecutar la acción de la IA" << std::endl;
-        
-        // FALLBACK: Si minimax falla, usar movimiento aleatorio
-        std::cout << "Usando movimiento aleatorio como fallback..." << std::endl;
-        movimientoAleatorioFallback(tanqueIA, tablero, filas, columnas);
-    }
-
-    // Liberar memoria
-    //delete estadoActual;
-}
-
+// Función para mostrar el mensaje final al jugador
 bool mostrarMensajeFinal(sf::RenderWindow& window, sf::Font& font, const std::string& mensaje) {
     
     sf::Text texto;
@@ -3570,6 +2727,7 @@ AccionPlanificada planificarAccionIAFacil(
     }
 }
 
+// Función para planificar acción de IA media
 AccionPlanificada planificarAccionIAMedia(
     std::stack<Tanque*> tanquesIAStack,
     std::stack<Tanque*> tanquesJugadorStack,
@@ -3678,105 +2836,8 @@ AccionPlanificada planificarAccionIAMedia(
     }
 }
 
-void bucleDeCombateSimultaneo(
-    sf::RenderWindow& window,
-    sf::Font& font,
-    std::stack<Tanque*>& tanquesJugador,
-    std::stack<Tanque*>& tanquesIA,
-    NodoSistema* tablero,
-    int filas,
-    int columnas,
-    int cellSize,
-    sf::Texture& texturaTerreno1,
-    sf::Texture& texturaTerreno2,
-    sf::Texture& texturaTerreno3,
-    sf::Texture& texturaTanqueLigeroJugador,
-    sf::Texture& texturaTanqueMedianoJugador,
-    sf::Texture& texturaTanquePesadoJugador,
-    sf::Texture& texturaTanqueLigeroIA,
-    sf::Texture& texturaTanqueMedianoIA,
-    sf::Texture& texturaTanquePesadoIA,
-    sf::Texture& texturaExplosionTerreno,
-    sf::Texture& texturaExplosionTanque,
-    sf::Texture& texturaTanqueLigeroJugadorDestruido,
-    sf::Texture& texturaTanqueMedianoJugadorDestruido,
-    sf::Texture& texturaTanquePesadoJugadorDestruido,
-    sf::Texture& texturaTanqueLigeroIADestruido,
-    sf::Texture& texturaTanqueMedianoIADestruido,
-    sf::Texture& texturaTanquePesadoIADestruido,
-    int dificultad
-) {
-    while (window.isOpen()) {
-        // Verificar condiciones de victoria (igual que antes)
-        bool jugadorSinTanques = true;
-        {
-            std::stack<Tanque*> tempJugador = tanquesJugador; 
-            while (!tempJugador.empty()) {
-                if (tempJugador.top()->getVida() > 0) {
-                    jugadorSinTanques = false;
-                    break;
-                }
-                tempJugador.pop();
-            }
-        }
-
-        bool iaSinTanques = true;
-        {
-            std::stack<Tanque*> tempIA = tanquesIA;
-            while (!tempIA.empty()) {
-                if (tempIA.top()->getVida() > 0) {
-                    iaSinTanques = false;
-                    break;
-                }
-                tempIA.pop();
-            }
-        }
-
-        if (jugadorSinTanques || iaSinTanques) {
-            std::string mensajeFinal = jugadorSinTanques ? "Has perdido" : "Has ganado";
-            bool volverAlMenu = mostrarMensajeFinal(window, font, mensajeFinal);
-            if (volverAlMenu) {
-                return; 
-            }
-        }
-
-        // FASE 1: Obtener acción del jugador
-        std::cout << "\n--- TURNO DEL JUGADOR ---" << std::endl;
-        AccionPlanificada accionJugador = menuAccionesJugadorSimultaneo(
-            window, font, tanquesJugador, tablero, filas, columnas, cellSize,
-            texturaTerreno1, texturaTerreno2, texturaTerreno3,
-            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
-            texturaExplosionTerreno, texturaExplosionTanque, texturaTanqueLigeroJugadorDestruido,
-            texturaTanqueMedianoJugadorDestruido, texturaTanquePesadoJugadorDestruido, texturaTanqueLigeroIADestruido,
-            texturaTanqueMedianoIADestruido, texturaTanquePesadoIADestruido
-        );
-
-        // FASE 2: Obtener acción de la IA
-        std::cout << "\n--- TURNO DE LA IA ---" << std::endl;
-        AccionPlanificada accionIA = obtenerAccionIA(tanquesIA, tablero, filas, columnas);
-
-        // FASE 3: Ejecutar ambas acciones simultáneamente
-        ejecutarAccionesSimultaneas(accionJugador, accionIA, tablero);
-
-        // FASE 4: Mostrar resultado final
-        window.clear();
-        desplegarTablero(
-            window, font, filas, columnas, cellSize, tablero,
-            texturaTerreno1, texturaTerreno2, texturaTerreno3,
-            texturaTanqueLigeroJugador, texturaTanqueMedianoJugador, texturaTanquePesadoJugador,
-            texturaTanqueLigeroIA, texturaTanqueMedianoIA, texturaTanquePesadoIA,
-            texturaExplosionTerreno, texturaExplosionTanque, texturaTanqueLigeroJugadorDestruido,
-            texturaTanqueMedianoJugadorDestruido, texturaTanquePesadoJugadorDestruido, texturaTanqueLigeroIADestruido,
-            texturaTanqueMedianoIADestruido, texturaTanquePesadoIADestruido
-        );
-        window.display();
-        
-        // Pausa para que el jugador pueda ver el resultado
-        sf::sleep(sf::milliseconds(1500));
-    }
-}
-
+// Función principal del bucle de combate
+// Aquí se maneja el flujo del combate entre el jugador y la IA
 void bucleDeCombate(
     sf::RenderWindow& window,
     sf::Font& font,
@@ -3902,7 +2963,6 @@ void bucleDeCombate(
         sf::sleep(sf::milliseconds(1500));
     }
 }
-
 
 // FUNCIÓN MAIN COMPLETA
 int main() {
